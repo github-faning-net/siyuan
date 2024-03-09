@@ -52,4 +52,4 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t faning-net/siyuan:latest -t faning-net/siyuan:v103.0.2 .
+          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/faning-net/siyuan:latest -t ghcr.io/faning-net/siyuan:v103.0.2 .
