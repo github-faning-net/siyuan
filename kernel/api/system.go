@@ -17,13 +17,14 @@
 package api
 
 import (
-	"github.com/88250/lute"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/88250/lute"
 
 	"github.com/88250/gulu"
 	"github.com/gin-gonic/gin"
@@ -181,16 +182,17 @@ func addCustomEmoji(name string, items *[]map[string]interface{}) {
 }
 
 func checkUpdate(c *gin.Context) {
-	ret := gulu.Ret.NewResult()
-	defer c.JSON(http.StatusOK, ret)
+	// ret := gulu.Ret.NewResult()
+	// defer c.JSON(http.StatusOK, ret)
 
-	arg, ok := util.JsonArg(c, ret)
-	if !ok {
-		return
-	}
+	// arg, ok := util.JsonArg(c, ret)
+	// if !ok {
+	// 	return
+	// }
 
-	showMsg := arg["showMsg"].(bool)
-	model.CheckUpdate(showMsg)
+	// showMsg := arg["showMsg"].(bool)
+	// model.CheckUpdate(showMsg)
+	return
 }
 
 func exportLog(c *gin.Context) {
