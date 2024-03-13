@@ -179,6 +179,7 @@ func CheckAuth(c *gin.Context) {
 			("" != clientIP && !util.IsLocalHostname(clientIP)) ||
 			("" != host && !util.IsLocalHost(host)) ||
 			("" != origin && !util.IsLocalOrigin(origin) && !strings.HasPrefix(origin, "chrome-extension://")) ||
+			("" != origin && !util.IsLocalOrigin(origin) && !strings.HasPrefix(origin, "moz-extension://")) ||
 			("" != forwardedHost && !util.IsLocalHost(forwardedHost)) {
 			c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": "Auth failed: for security reasons, please set [Access authorization code] when using non-127.0.0.1 access\n\n为安全起见，使用非 127.0.0.1 访问时请设置 [访问授权码]"})
 			c.Abort()
@@ -220,14 +221,6 @@ func CheckAuth(c *gin.Context) {
 		}
 	}
 
-	// 通过 Cookie
-	session := util.GetSession(c)
-	workspaceSession := util.GetWorkspaceSession(session)
-	if workspaceSession.AccessAuthCode == Conf.AccessAuthCode {
-		c.Next()
-		return
-	}
-
 	// 通过 API token (header: Authorization)
 	if authHeader := c.GetHeader("Authorization"); "" != authHeader {
 		if strings.HasPrefix(authHeader, "Token ") {
@@ -252,6 +245,14 @@ func CheckAuth(c *gin.Context) {
 
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": "Auth failed"})
 		c.Abort()
+		return
+	}
+
+	// 通过 Cookie
+	session := util.GetSession(c)
+	workspaceSession := util.GetWorkspaceSession(session)
+	if workspaceSession.AccessAuthCode == Conf.AccessAuthCode {
+		c.Next()
 		return
 	}
 
