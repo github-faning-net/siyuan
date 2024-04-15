@@ -13,7 +13,7 @@
   color: var(--b3-theme-on-background);
   line-height: 16px;
   font-weight: 400;
-  font-size: 0.8125rem;
+  font-size: .8125rem;
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
@@ -34,6 +34,12 @@
   &--small {
     padding: 0 8px;
     font-size: 12px;
+  }
+
+  &--list {
+    padding: 0 4px;
+    margin-right: 4px;
+    font-family: var(--b3-font-family-code);
   }
 
   &--secondary {

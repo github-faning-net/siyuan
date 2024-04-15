@@ -23,8 +23,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/model"
+	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func getMirrorDatabaseBlocks(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	avID := arg["avID"].(string)
+	ret.Data = treenode.GetMirrorAttrViewBlockIDs(avID)
+}
 
 func setDatabaseBlockView(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -68,7 +82,11 @@ func getAttributeViewPrimaryKeyValues(c *gin.Context) {
 		pageSize = int(pageSizeArg.(float64))
 	}
 
-	attributeViewName, rows, err := model.GetAttributeViewPrimaryKeyValues(id, page, pageSize)
+	keyword := ""
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+	attributeViewName, databaseBlockIDs, rows, err := model.GetAttributeViewPrimaryKeyValues(id, keyword, page, pageSize)
 	if nil != err {
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -76,8 +94,9 @@ func getAttributeViewPrimaryKeyValues(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"name": attributeViewName,
-		"rows": rows,
+		"name":     attributeViewName,
+		"blockIDs": databaseBlockIDs,
+		"rows":     rows,
 	}
 }
 
@@ -104,8 +123,12 @@ func addAttributeViewValues(c *gin.Context) {
 		previousID = arg["previousID"].(string)
 	}
 	isDetached := arg["isDetached"].(bool)
+	ignoreFillFilter := true
+	if nil != arg["ignoreFillFilter"] {
+		ignoreFillFilter = arg["ignoreFillFilter"].(bool)
+	}
 
-	err := model.AddAttributeViewBlock(nil, srcIDs, avID, blockID, previousID, isDetached)
+	err := model.AddAttributeViewBlock(nil, srcIDs, avID, blockID, previousID, isDetached, ignoreFillFilter)
 	if nil != err {
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -140,7 +163,7 @@ func removeAttributeViewValues(c *gin.Context) {
 	pushRefreshAttrView(avID)
 }
 
-func addAttributeViewCol(c *gin.Context) {
+func addAttributeViewKey(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
@@ -166,7 +189,7 @@ func addAttributeViewCol(c *gin.Context) {
 	pushRefreshAttrView(avID)
 }
 
-func removeAttributeViewCol(c *gin.Context) {
+func removeAttributeViewKey(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
@@ -188,7 +211,7 @@ func removeAttributeViewCol(c *gin.Context) {
 	pushRefreshAttrView(avID)
 }
 
-func sortAttributeViewCol(c *gin.Context) {
+func sortAttributeViewKey(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
@@ -225,8 +248,9 @@ func getAttributeViewFilterSort(c *gin.Context) {
 	}
 
 	avID := arg["id"].(string)
+	blockID := arg["blockID"].(string)
 
-	filters, sorts := model.GetAttributeViewFilterSort(avID)
+	filters, sorts := model.GetAttributeViewFilterSort(avID, blockID)
 	ret.Data = map[string]interface{}{
 		"filters": filters,
 		"sorts":   sorts,
@@ -294,22 +318,9 @@ func searchAttributeView(c *gin.Context) {
 	}
 
 	keyword := arg["keyword"].(string)
-	page := 1
-	pageArg := arg["page"]
-	if nil != pageArg {
-		page = int(pageArg.(float64))
-	}
-
-	pageSize := 10
-	pageSizeArg := arg["pageSize"]
-	if nil != pageSizeArg {
-		pageSize = int(pageSizeArg.(float64))
-	}
-
-	results, total := model.SearchAttributeView(keyword, page, pageSize)
+	results := model.SearchAttributeView(keyword)
 	ret.Data = map[string]interface{}{
 		"results": results,
-		"total":   total,
 	}
 }
 
@@ -424,7 +435,13 @@ func renderAttributeView(c *gin.Context) {
 		pageSize = int(pageSizeArg.(float64))
 	}
 
-	view, attrView, err := model.RenderAttributeView(id, viewID, page, pageSize)
+	query := ""
+	queryArg := arg["query"]
+	if nil != queryArg {
+		query = queryArg.(string)
+	}
+
+	view, attrView, err := model.RenderAttributeView(id, viewID, query, page, pageSize)
 	if nil != err {
 		ret.Code = -1
 		ret.Msg = err.Error()

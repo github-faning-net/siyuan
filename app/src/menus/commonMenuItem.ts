@@ -6,7 +6,7 @@ import {getSearch, isMobile, isValidAttrName} from "../util/functions";
 import {isLocalPath, movePathTo, moveToPath, pathPosix} from "../util/pathName";
 import {MenuItem} from "./Menu";
 import {saveExport} from "../protyle/export";
-import {openByMobile, writeText} from "../protyle/util/compatibility";
+import {isInAndroid, openByMobile, writeText} from "../protyle/util/compatibility";
 import {fetchPost, fetchSyncPost} from "../util/fetch";
 import {hideMessage, showMessage} from "../dialog/message";
 import {Dialog} from "../dialog";
@@ -20,6 +20,7 @@ import {Constants} from "../constants";
 import {exportImage} from "../protyle/export/util";
 import {App} from "../index";
 import {renderAVAttribute} from "../protyle/render/av/blockAttr";
+import {openAssetNewWindow} from "../window/openNewWindow";
 
 const bindAttrInput = (inputElement: HTMLInputElement, id: string) => {
     inputElement.addEventListener("change", () => {
@@ -175,7 +176,7 @@ export const openFileAttr = (attrs: IObject, focusName = "bookmark", protyle?: I
         <span data-action="remove" class="block__icon block__icon--show"><svg><use xlink:href="#iconMin"></use></svg></span>
     </div>
     <div class="fn__hr"></div>
-    <textarea class="b3-text-field fn__block" rows="1" data-name="${item}">${attrs[item]}</textarea>
+    <textarea spellcheck="false" class="b3-text-field fn__block" rows="1" data-name="${item}">${attrs[item]}</textarea>
 </label>`;
         }
     });
@@ -208,22 +209,22 @@ export const openFileAttr = (attrs: IObject, focusName = "bookmark", protyle?: I
                     <span data-action="bookmark" class="block__icon block__icon--show"><svg><use xlink:href="#iconDown"></use></svg></span>
                 </div>
                 <div class="fn__hr"></div>
-                <input class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrBookmarkTip}" data-name="bookmark">
+                <input spellcheck="${window.siyuan.config.editor.spellcheck}" class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrBookmarkTip}" data-name="bookmark">
             </label>
             <label class="b3-label b3-label--noborder">
                 ${window.siyuan.languages.name}
                 <div class="fn__hr"></div>
-                <input class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrNameTip}" data-name="name">
+                <input spellcheck="${window.siyuan.config.editor.spellcheck}" class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrNameTip}" data-name="name">
             </label>
             <label class="b3-label b3-label--noborder">
                 ${window.siyuan.languages.alias}
                 <div class="fn__hr"></div>
-                <input class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrAliasTip}" data-name="alias">
+                <input spellcheck="${window.siyuan.config.editor.spellcheck}" class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrAliasTip}" data-name="alias">
             </label>
             <label class="b3-label b3-label--noborder">
                 ${window.siyuan.languages.memo}
                 <div class="fn__hr"></div>
-                <textarea class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrMemoTip}" rows="2" data-name="memo">${attrs.memo || ""}</textarea>
+                <textarea spellcheck="${window.siyuan.config.editor.spellcheck}" class="b3-text-field fn__block" placeholder="${window.siyuan.languages.attrMemoTip}" rows="2" data-name="memo">${attrs.memo || ""}</textarea>
             </label>
             ${notifyHTML}
         </div>
@@ -305,7 +306,7 @@ export const openFileAttr = (attrs: IObject, focusName = "bookmark", protyle?: I
             } else if (type === "addCustom") {
                 const addDialog = new Dialog({
                     title: window.siyuan.languages.attrName,
-                    content: `<div class="b3-dialog__content"><input class="b3-text-field fn__block" value=""></div>
+                    content: `<div class="b3-dialog__content"><input spellcheck="false" class="b3-text-field fn__block" value=""></div>
 <div class="b3-dialog__action">
     <button class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
     <button class="b3-button b3-button--text">${window.siyuan.languages.confirm}</button>
@@ -334,7 +335,7 @@ export const openFileAttr = (attrs: IObject, focusName = "bookmark", protyle?: I
         <span data-action="remove" class="block__icon block__icon--show"><svg><use xlink:href="#iconMin"></use></svg></span>
     </div>
     <div class="fn__hr"></div>
-    <textarea data-name="custom-${inputElement.value}" class="b3-text-field fn__block" rows="1" placeholder="${window.siyuan.languages.attrValue1}"></textarea>
+    <textarea spellcheck="false" data-name="custom-${inputElement.value}" class="b3-text-field fn__block" rows="1" placeholder="${window.siyuan.languages.attrValue1}"></textarea>
 </div>`);
                     const valueElement = target.parentElement.previousElementSibling.querySelector(".b3-text-field") as HTMLInputElement;
                     valueElement.focus();
@@ -475,7 +476,7 @@ export const exportMd = (id: string) => {
                 });
                 btnsElement[1].addEventListener("click", () => {
                     if (inputElement.value.trim() === "") {
-                        inputElement.value = "Untitled";
+                        inputElement.value = window.siyuan.languages.untitled;
                     } else {
                         inputElement.value = replaceFileName(inputElement.value);
                     }
@@ -679,12 +680,20 @@ export const exportMd = (id: string) => {
 
 export const openMenu = (app: App, src: string, onlyMenu: boolean, showAccelerator: boolean) => {
     const submenu = [];
+    /// #if MOBILE
+    submenu.push({
+        label: isInAndroid() ? window.siyuan.languages.useDefault : window.siyuan.languages.useBrowserView,
+        accelerator: showAccelerator ? "Click" : "",
+        click: () => {
+            openByMobile(src);
+        }
+    });
+    /// #else
     if (isLocalPath(src)) {
         if (Constants.SIYUAN_ASSETS_EXTS.includes(pathPosix().extname(src)) &&
             (!src.endsWith(".pdf") ||
                 (src.endsWith(".pdf") && !src.startsWith("file://")))
         ) {
-            /// #if !MOBILE
             submenu.push({
                 icon: "iconLayoutRight",
                 label: window.siyuan.languages.insertRight,
@@ -693,8 +702,30 @@ export const openMenu = (app: App, src: string, onlyMenu: boolean, showAccelerat
                     openAsset(app, src.trim(), parseInt(getSearch("page", src)), "right");
                 }
             });
-            /// #endif
+            submenu.push({
+                label: window.siyuan.languages.openBy,
+                icon: "iconOpen",
+                accelerator: showAccelerator ? "⌥Click" : "",
+                click() {
+                    openAsset(app, src.trim(), parseInt(getSearch("page", src)));
+                }
+            });
             /// #if !BROWSER
+            submenu.push({
+                label: window.siyuan.languages.openByNewWindow,
+                icon: "iconOpenWindow",
+                click() {
+                    openAssetNewWindow(src.trim());
+                }
+            });
+            submenu.push({
+                icon: "iconFolder",
+                label: window.siyuan.languages.showInFolder,
+                accelerator: showAccelerator ? "⌘Click" : "",
+                click: () => {
+                    openBy(src, "folder");
+                }
+            });
             submenu.push({
                 label: window.siyuan.languages.useDefault,
                 accelerator: showAccelerator ? "⇧Click" : "",
@@ -712,19 +743,30 @@ export const openMenu = (app: App, src: string, onlyMenu: boolean, showAccelerat
                     openBy(src, "app");
                 }
             });
+            submenu.push({
+                icon: "iconFolder",
+                label: window.siyuan.languages.showInFolder,
+                accelerator: showAccelerator ? "⌘Click" : "",
+                click: () => {
+                    openBy(src, "folder");
+                }
+            });
+            /// #else
+            submenu.push({
+                label: isInAndroid() ? window.siyuan.languages.useDefault : window.siyuan.languages.useBrowserView,
+                accelerator: showAccelerator ? "Click" : "",
+                click: () => {
+                    openByMobile(src);
+                }
+            });
             /// #endif
         }
-        /// #if !BROWSER
-        submenu.push({
-            icon: "iconFolder",
-            label: window.siyuan.languages.showInFolder,
-            accelerator: showAccelerator ? "⌘Click" : "",
-            click: () => {
-                openBy(src, "folder");
-            }
-        });
-        /// #endif
-    } else {
+    } else if (src) {
+        if (0 > src.indexOf(":")) {
+            // 使用 : 判断，不使用 :// 判断 Open external application protocol invalid https://github.com/siyuan-note/siyuan/issues/10075
+            // Support click to open hyperlinks like `www.foo.com` https://github.com/siyuan-note/siyuan/issues/9986
+            src = `https://${src}`;
+        }
         /// #if !BROWSER
         submenu.push({
             label: window.siyuan.languages.useDefault,
@@ -735,16 +777,16 @@ export const openMenu = (app: App, src: string, onlyMenu: boolean, showAccelerat
                 });
             }
         });
+        /// #else
+        submenu.push({
+            label: isInAndroid() ? window.siyuan.languages.useDefault : window.siyuan.languages.useBrowserView,
+            accelerator: showAccelerator ? "Click" : "",
+            click: () => {
+                openByMobile(src);
+            }
+        });
         /// #endif
     }
-    /// #if BROWSER
-    submenu.push({
-        label: window.siyuan.languages.useBrowserView,
-        accelerator: showAccelerator ? "Click" : "",
-        click: () => {
-            openByMobile(src);
-        }
-    });
     /// #endif
     if (onlyMenu) {
         return submenu;

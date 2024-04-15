@@ -20,14 +20,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/araddon/dateparse"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
@@ -171,6 +169,16 @@ func DocSaveAsTemplate(id, name string, overwrite bool) (code int, err error) {
 	luteEngine := NewLute()
 	formatRenderer := render.NewFormatRenderer(tree, luteEngine.RenderOptions)
 	md := formatRenderer.Render()
+
+	// 单独渲染根节点的 IAL
+	if 0 < len(tree.Root.KramdownIAL) {
+		// 把 docIAL 中的 id 调整到第一个
+		tree.Root.RemoveIALAttr("id")
+		tree.Root.KramdownIAL = append([][]string{{"id", tree.Root.ID}}, tree.Root.KramdownIAL...)
+		md = append(md, []byte("\n")...)
+		md = append(md, parse.IAL2Tokens(tree.Root.KramdownIAL)...)
+	}
+
 	name = util.FilterFileName(name) + ".md"
 	name = util.TruncateLenFileName(name)
 	savePath := filepath.Join(util.DataDir, "templates", name)
@@ -185,24 +193,21 @@ func DocSaveAsTemplate(id, name string, overwrite bool) (code int, err error) {
 	return
 }
 
-func RenderTemplate(p, id string, preview bool) (string, error) {
-	return renderTemplate(p, id, preview)
-}
-
-func renderTemplate(p, id string, preview bool) (string, error) {
-	tree, err := loadTreeByBlockID(id)
+func RenderTemplate(p, id string, preview bool) (tree *parse.Tree, dom string, err error) {
+	tree, err = LoadTreeByBlockID(id)
 	if nil != err {
-		return "", err
+		return
 	}
 
 	node := treenode.GetNodeInTree(tree, id)
 	if nil == node {
-		return "", ErrBlockNotFound
+		err = ErrBlockNotFound
+		return
 	}
 	block := sql.BuildBlockFromNode(node, tree)
 	md, err := os.ReadFile(p)
 	if nil != err {
-		return "", err
+		return
 	}
 
 	dataModel := map[string]string{}
@@ -224,20 +229,23 @@ func renderTemplate(p, id string, preview bool) (string, error) {
 	goTpl = goTpl.Funcs(tplFuncMap)
 	tpl, err := goTpl.Funcs(tplFuncMap).Parse(gulu.Str.FromBytes(md))
 	if nil != err {
-		return "", errors.New(fmt.Sprintf(Conf.Language(44), err.Error()))
+		err = errors.New(fmt.Sprintf(Conf.Language(44), err.Error()))
+		return
 	}
 
 	buf := &bytes.Buffer{}
 	buf.Grow(4096)
 	if err = tpl.Execute(buf, dataModel); nil != err {
-		return "", errors.New(fmt.Sprintf(Conf.Language(44), err.Error()))
+		err = errors.New(fmt.Sprintf(Conf.Language(44), err.Error()))
+		return
 	}
 	md = buf.Bytes()
 	tree = parseKTree(md)
 	if nil == tree {
 		msg := fmt.Sprintf("parse tree [%s] failed", p)
 		logging.LogErrorf(msg)
-		return "", errors.New(msg)
+		err = errors.New(msg)
+		return
 	}
 
 	var nodesNeedAppendChild, unlinks []*ast.Node
@@ -306,7 +314,7 @@ func renderTemplate(p, id string, preview bool) (string, error) {
 						return ast.WalkContinue
 					}
 
-					table, renderErr := renderAttributeViewTable(attrView, view)
+					table, renderErr := renderAttributeViewTable(attrView, view, "")
 					if nil != renderErr {
 						logging.LogErrorf("render attribute view [%s] table failed: %s", n.AttributeViewID, renderErr)
 						return ast.WalkContinue
@@ -359,8 +367,8 @@ func renderTemplate(p, id string, preview bool) (string, error) {
 	})
 
 	luteEngine := NewLute()
-	dom := luteEngine.Tree2BlockDOM(tree, luteEngine.RenderOptions)
-	return dom, nil
+	dom = luteEngine.Tree2BlockDOM(tree, luteEngine.RenderOptions)
+	return
 }
 
 func addBlockIALNodes(tree *parse.Tree, removeUpdated bool) {
@@ -412,14 +420,5 @@ func SQLTemplateFuncs(templateFuncMap *template.FuncMap) {
 		}
 		retSpans = sql.SelectSpansRawStmt(stmt, 512)
 		return
-	}
-	(*templateFuncMap)["parseTime"] = func(dateStr string) time.Time {
-		now := time.Now()
-		retTime, err := dateparse.ParseIn(dateStr, now.Location())
-		if nil != err {
-			logging.LogWarnf("parse date [%s] failed [%s], return current time instead", dateStr, err)
-			return now
-		}
-		return retTime
 	}
 }

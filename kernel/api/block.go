@@ -436,6 +436,24 @@ func getBlockIndex(c *gin.Context) {
 	ret.Data = index
 }
 
+func getBlocksIndexes(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	idsArg := arg["ids"].([]interface{})
+	var ids []string
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+	index := model.GetBlocksIndexes(ids)
+	ret.Data = index
+}
+
 func getBlockInfo(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -447,7 +465,8 @@ func getBlockInfo(c *gin.Context) {
 
 	id := arg["id"].(string)
 
-	tree, err := model.LoadTreeByID(id)
+	// 仅在此处使用带重建索引的加载函数，其他地方不要使用
+	tree, err := model.LoadTreeByBlockIDWithReindex(id)
 	if errors.Is(err, model.ErrIndexing) {
 		ret.Code = 3
 		ret.Msg = model.Conf.Language(56)

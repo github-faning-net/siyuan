@@ -1,12 +1,6 @@
 import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {MenuItem} from "../../menus/Menu";
-import {
-    copySubMenu,
-    exportMd,
-    movePathToMenu,
-    openFileAttr,
-    openFileWechatNotify,
-} from "../../menus/commonMenuItem";
+import {copySubMenu, exportMd, movePathToMenu, openFileAttr, openFileWechatNotify,} from "../../menus/commonMenuItem";
 import {deleteFile} from "../../editor/deleteFile";
 import {updateHotkeyTip} from "../util/compatibility";
 /// #if !MOBILE
@@ -52,6 +46,7 @@ export const openTitleMenu = (protyle: IProtyle, position: IPosition) => {
             window.siyuan.menus.menu.append(movePathToMenu([protyle.path]));
             window.siyuan.menus.menu.append(new MenuItem({
                 label: window.siyuan.languages.addToDatabase,
+                accelerator: window.siyuan.config.keymap.general.addToDatabase.custom,
                 icon: "iconDatabase",
                 click: () => {
                     openSearchAV("", protyle.breadcrumb.element, (listItemElement) => {
@@ -60,9 +55,14 @@ export const openTitleMenu = (protyle: IProtyle, position: IPosition) => {
                         transaction(protyle, [{
                             action: "insertAttrViewBlock",
                             avID,
+                            ignoreFillFilter: true,
                             srcIDs: sourceIds,
                             isDetached: false,
                             blockID: listItemElement.dataset.nodeId
+                        }, {
+                            action: "doUpdateUpdated",
+                            id: listItemElement.dataset.nodeId,
+                            data: dayjs().format("YYYYMMDDHHmmss"),
                         }], [{
                             action: "removeAttrViewBlock",
                             srcIDs: sourceIds,
@@ -99,7 +99,7 @@ export const openTitleMenu = (protyle: IProtyle, position: IPosition) => {
                     blockId: protyle.block.id,
                     rootId: protyle.block.rootID,
                     useBlockId: protyle.block.showAll,
-                    title: protyle.title ? (protyle.title.editElement.textContent || "Untitled") : null
+                    title: protyle.title ? (protyle.title.editElement.textContent || window.siyuan.languages.untitled) : null
                 });
             }
         }).element);
@@ -113,7 +113,7 @@ export const openTitleMenu = (protyle: IProtyle, position: IPosition) => {
                     blockId: protyle.block.id,
                     rootId: protyle.block.rootID,
                     useBlockId: protyle.block.showAll,
-                    title: protyle.title ? (protyle.title.editElement.textContent || "Untitled") : null
+                    title: protyle.title ? (protyle.title.editElement.textContent || window.siyuan.languages.untitled) : null
                 });
             }
         }).element);

@@ -1,7 +1,3 @@
-type TLayout = "normal" | "bottom" | "left" | "right" | "center"
-type TSearchFilter = "mathBlock" | "table" | "blockquote" | "superBlock" | "paragraph" | "document" | "heading"
-    | "list" | "listItem" | "codeBlock" | "htmlBlock"
-type TDirection = "lr" | "tb"
 type TPluginDockPosition = "LeftTop" | "LeftBottom" | "RightTop" | "RightBottom" | "BottomLeft" | "BottomRight"
 type TDockPosition = "Left" | "Right" | "Bottom"
 type TWS = "main" | "filetree" | "protyle"
@@ -50,8 +46,10 @@ type TOperation =
     | "sortAttrViewView"
     | "setAttrViewPageSize"
     | "updateAttrViewColRelation"
+    | "moveOutlineHeading"
     | "updateAttrViewColRollup"
     | "hideAttrViewName"
+    | "setAttrViewColDate"
 type TBazaarType = "templates" | "icons" | "widgets" | "themes" | "plugins"
 type TCardType = "doc" | "notebook" | "all"
 type TEventBus = "ws-main" | "sync-start" | "sync-end" | "sync-fail" |
@@ -218,6 +216,10 @@ interface ICard {
     cardID: string
     blockID: string
     nextDues: IObject
+    lapses: number  // 遗忘次数
+    lastReview: number  // 最后复习时间
+    reps: number  // 复习次数
+    state: number   // 卡片状态 0：新卡
 }
 
 interface ICardData {
@@ -264,24 +266,30 @@ interface ISearchOption {
     idPath: string[]
     k: string
     r: string
-    types: {
-        mathBlock: boolean
-        table: boolean
-        blockquote: boolean
-        superBlock: boolean
-        paragraph: boolean
-        document: boolean
-        heading: boolean
-        list: boolean
-        listItem: boolean
-        codeBlock: boolean
-        htmlBlock: boolean
-        embedBlock: boolean
-        databaseBlock: boolean
-    },
+    types: ISearchType,
     replaceTypes: {
         [key: string]: boolean;
     },
+}
+
+interface ISearchType {
+    audioBlock: boolean
+    videoBlock: boolean
+    iframeBlock: boolean
+    widgetBlock: boolean
+    mathBlock: boolean
+    table: boolean
+    blockquote: boolean
+    superBlock: boolean
+    paragraph: boolean
+    document: boolean
+    heading: boolean
+    list: boolean
+    listItem: boolean
+    codeBlock: boolean
+    htmlBlock: boolean
+    embedBlock: boolean
+    databaseBlock: boolean
 }
 
 interface ITextOption {
@@ -417,7 +425,7 @@ interface ISiyuan {
         rightDock?: import("../layout/dock").Dock,
         bottomDock?: import("../layout/dock").Dock,
     }
-    config?: IConfig;
+    config?: Config.IConf;
     ws: import("../layout/Model").Model,
     ctrlIsPressed?: boolean,
     altIsPressed?: boolean,
@@ -467,6 +475,7 @@ interface IOperation {
     retData?: any
     nextID?: string // insert 专享
     isDetached?: boolean // insertAttrViewBlock 专享
+    ignoreFillFilter?: boolean // insertAttrViewBlock 专享
     srcIDs?: string[] // insertAttrViewBlock 专享
     name?: string // addAttrViewCol 专享
     type?: TAVCol // addAttrViewCol 专享
@@ -496,21 +505,8 @@ interface ILayoutJSON extends ILayoutOptions {
     isPreview?: boolean
     customModelData?: any
     customModelType?: string
-    config?: ISearchOption
+    config?: Config.IUILayoutTabSearchConfig
     children?: ILayoutJSON[] | ILayoutJSON
-}
-
-interface IDockTab {
-    type: string;
-    size: {
-        width: number,
-        height: number
-    }
-    show: boolean
-    icon: string
-    title: string
-    hotkey?: string
-    hotkeyLangId?: string   // 常量中无法存变量
 }
 
 interface ICommand {
@@ -553,7 +549,7 @@ interface IExportOptions {
 
 interface IOpenFileOptions {
     app: import("../index").App,
-    searchData?: ISearchOption, // 搜索必填
+    searchData?: Config.IUILayoutTabSearchConfig, // 搜索必填
     // card 和自定义页签 必填
     custom?: {
         title: string,
@@ -581,10 +577,10 @@ interface IOpenFileOptions {
 }
 
 interface ILayoutOptions {
-    direction?: TDirection;
+    direction?: Config.TUILayoutDirection
     size?: string
-    resize?: TDirection
-    type?: TLayout
+    resize?: Config.TUILayoutDirection
+    type?: Config.TUILayoutType
     element?: HTMLElement
 }
 
@@ -596,61 +592,6 @@ interface ITab {
     callback?: (tab: import("../layout/Tab").Tab) => void
 }
 
-interface IExport {
-    fileAnnotationRefMode: number
-    blockRefMode: number
-    blockEmbedMode: number
-    blockRefTextLeft: string
-    blockRefTextRight: string
-    tagOpenMarker: string
-    tagCloseMarker: string
-    pandocBin: string
-    paragraphBeginningSpace: boolean;
-    addTitle: boolean;
-    markdownYFM: boolean;
-    pdfFooter: string;
-    pdfWatermarkStr: string;
-    pdfWatermarkDesc: string;
-    imageWatermarkStr: string;
-    imageWatermarkDesc: string;
-    docxTemplate: string;
-}
-
-interface IEditor {
-    justify: boolean;
-    fontSizeScrollZoom: boolean;
-    rtl: boolean;
-    readOnly: boolean;
-    listLogicalOutdent: boolean;
-    listItemDotNumberClickFocus: boolean;
-    spellcheck: boolean;
-    onlySearchForDoc: boolean;
-    katexMacros: string;
-    fullWidth: boolean;
-    floatWindowMode: number;
-    dynamicLoadBlocks: number;
-    fontSize: number;
-    generateHistoryInterval: number;
-    historyRetentionDays: number;
-    codeLineWrap: boolean;
-    displayBookmarkIcon: boolean;
-    displayNetImgMark: boolean;
-    codeSyntaxHighlightLineNum: boolean;
-    embedBlockBreadcrumb: boolean;
-    plantUMLServePath: string;
-    codeLigatures: boolean;
-    codeTabSpaces: number;
-    fontFamily: string;
-    virtualBlockRef: boolean;
-    virtualBlockRefExclude: string;
-    virtualBlockRefInclude: string;
-    blockRefDynamicAnchorTextMaxLen: number;
-    backlinkExpandCount: number;
-    backmentionExpandCount: number;
-
-    emoji: string[];
-}
-
 interface IWebSocketData {
     cmd?: string
     callback?: string
@@ -658,205 +599,6 @@ interface IWebSocketData {
     msg: string
     code: number
     sid?: string
-}
-
-interface IAppearance {
-    modeOS: boolean,
-    hideStatusBar: boolean,
-    themeJS: boolean,
-    mode: number, // 1 暗黑；0 明亮
-    icon: string,
-    closeButtonBehavior: number  // 0：退出，1：最小化到托盘
-    codeBlockThemeDark: string
-    codeBlockThemeLight: string
-    themeDark: string
-    themeLight: string
-    icons: string[]
-    lang: string
-    iconVer: string
-    themeVer: string
-    lightThemes: string[]
-    darkThemes: string[]
-}
-
-interface IFileTree {
-    closeTabsOnStart: boolean
-    alwaysSelectOpenedFile: boolean
-    openFilesUseCurrentTab: boolean
-    removeDocWithoutConfirm: boolean
-    useSingleLineSave: boolean
-    allowCreateDeeper: boolean
-    refCreateSavePath: string
-    docCreateSavePath: string
-    sort: number
-    maxOpenTabCount: number
-    maxListCount: number
-}
-
-interface IAccount {
-    displayTitle: boolean
-    displayVIP: boolean
-}
-
-interface IConfig {
-    snippet: {
-        enabledCSS: boolean
-        enabledJS: boolean
-    }
-    cloudRegion: number
-    bazaar: {
-        trust: boolean
-        petalDisabled: boolean
-    }
-    repo: {
-        key: string
-    },
-    flashcard: {
-        newCardLimit: number
-        reviewCardLimit: number
-        mark: boolean
-        list: boolean
-        superBlock: boolean
-        heading: boolean
-        deck: boolean
-        reviewMode: number
-        requestRetention: number
-        maximumInterval: number
-        weights: string
-    }
-    ai: {
-        openAI: {
-            apiProvider: string // OpenAI, Azure
-            apiUserAgent: string
-            apiBaseURL: string
-            apiVersion: string
-            apiKey: string
-            apiModel: string
-            apiMaxTokens: number
-            apiProxy: string
-            apiTimeout: number
-        },
-    }
-    sync: {
-        generateConflictDoc: boolean
-        enabled: boolean
-        perception: boolean
-        mode: number
-        synced: number
-        stat: string
-        interval: number
-        cloudName: string
-        provider: number    // 0 官方同步， 2 S3， 3 WebDAV
-        s3: {
-            endpoint: string
-            pathStyle: boolean
-            accessKey: string
-            secretKey: string
-            bucket: string
-            region: string
-            skipTlsVerify: boolean
-            timeout: number
-        }
-        webdav: {
-            endpoint: string
-            username: string
-            password: string
-            skipTlsVerify: boolean
-            timeout: number
-        }
-    },
-    lang: string
-    api: {
-        token: string
-    }
-    openHelp: boolean
-    system: {
-        lockScreenMode: number   // 0：手动，1：手动+跟随系统
-        networkProxy: {
-            host: string
-            port: string
-            scheme: string
-        }
-        name: string
-        kernelVersion: string
-        isInsider: boolean
-        appDir: string
-        workspaceDir: string
-        confDir: string
-        dataDir: string
-        container: "std" | "android" | "docker" | "ios"
-        isMicrosoftStore: boolean
-        os: "windows" | "linux" | "darwin"
-        osPlatform: string
-        homeDir: string
-        xanadu: boolean
-        udanax: boolean
-        uploadErrLog: boolean
-        disableGoogleAnalytics: boolean
-        downloadInstallPkg: boolean
-        networkServe: boolean
-        fixedPort: boolean
-        autoLaunch: boolean
-    }
-    localIPs: string[]
-    readonly: boolean   // 全局只读
-    uiLayout: Record<string, any>
-    langs: {
-        label: string,
-        name: string
-    }[]
-    appearance: IAppearance
-    editor: IEditor,
-    fileTree: IFileTree
-    graph: IGraph
-    keymap: IKeymap
-    export: IExport
-    accessAuthCode: string
-    account: IAccount
-    tag: {
-        sort: number
-    }
-    search: {
-        databaseBlock: boolean
-        embedBlock: boolean
-        htmlBlock: boolean
-        document: boolean
-        heading: boolean
-        list: boolean
-        listItem: boolean
-        codeBlock: boolean
-        mathBlock: boolean
-        table: boolean
-        blockquote: boolean
-        superBlock: boolean
-        paragraph: boolean
-        name: boolean
-        alias: boolean
-        memo: boolean
-        indexAssetPath: boolean
-        ial: boolean
-        limit: number
-        caseSensitive: boolean
-        backlinkMentionName: boolean
-        backlinkMentionAlias: boolean
-        backlinkMentionAnchor: boolean
-        backlinkMentionDoc: boolean
-        backlinkMentionKeywordsLimit: boolean
-        virtualRefName: boolean
-        virtualRefAlias: boolean
-        virtualRefAnchor: boolean
-        virtualRefDoc: boolean
-    },
-    stat: {
-        treeCount: number
-        cTreeCount: number
-        blockCount: number
-        cBlockCount: number
-        dataSize: number
-        cDataSize: number
-        assetsSize: number
-        cAssetsSize: number
-    }
 }
 
 interface IGraphCommon {
@@ -881,44 +623,6 @@ interface IGraphCommon {
         super: boolean
         table: boolean
         tag: boolean
-    }
-}
-
-interface IGraph {
-    global: {
-        minRefs: number
-        dailyNote: boolean
-    } & IGraphCommon
-    local: {
-        dailyNote: boolean
-    } & IGraphCommon
-}
-
-interface IKeymap {
-    plugin: {
-        [key: string]: {
-            [key: string]: IKeymapItem
-        }
-    }
-    general: {
-        [key: string]: IKeymapItem
-    }
-    editor: {
-        general: {
-            [key: string]: IKeymapItem
-        }
-        insert: {
-            [key: string]: IKeymapItem
-        }
-        heading: {
-            [key: string]: IKeymapItem
-        }
-        list: {
-            [key: string]: IKeymapItem
-        }
-        table: {
-            [key: string]: IKeymapItem
-        }
     }
 }
 
@@ -1005,6 +709,7 @@ interface IModels {
 }
 
 interface IMenu {
+    checked?: boolean,
     iconClass?: string,
     label?: string,
     click?: (element: HTMLElement, event: MouseEvent) => boolean | void | Promise<boolean | void>
@@ -1082,7 +787,6 @@ interface IAVFilter {
     column: string,
     operator: TAVFilterOperator,
     value: IAVCellValue,
-    type?: TAVCol   // 仅用于标识新增时的类型，用于区分 rollup
     relativeDate?: relativeDate
     relativeDate2?: relativeDate
 }
@@ -1110,6 +814,9 @@ interface IAVColumn {
     numberFormat: string,
     template: string,
     calc: IAVCalc,
+    date?: {
+        autoFillNow: boolean,
+    }
     // 选项列表
     options?: {
         name: string,
@@ -1168,7 +875,7 @@ interface IAVCellValue {
     }
     relation?: {
         blockIDs: string[]
-        contents?: string[]
+        contents?: IAVCellValue[]
     }
     rollup?: {
         contents?: IAVCellValue[]

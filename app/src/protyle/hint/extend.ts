@@ -46,8 +46,8 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
         filter: ["ai chat"],
         value: Constants.ZWSP + 5,
         html: '<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconSparkles"></use></svg><span class="b3-list-item__text">AI Chat</span></div>',
-    },{
-        filter: ["数据库", "属性视图", "shujuku", "shuxingshitu", "sjk", "sxst", "database", "attribute view"],
+    }, {
+        filter: ["数据库", "视图", "shujuku", "shitu", "sjk", "st", "database", "view", "db"],
         value: '<div data-type="NodeAttributeView" data-av-type="table"></div>',
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconDatabase"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.database}</span></div>`,
     }, {
@@ -246,7 +246,7 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
         filter: ["移除样式", "yichuyangshi", "ycys", "remove style"],
         value: `style${Constants.ZWSP}`,
         html: `<div class="b3-list-item__first"><div class="color__square">A</div><span class="b3-list-item__text">${window.siyuan.languages.clearFontStyle}</span></div>`,
-    },{
+    }, {
         value: "",
         html: "separator",
     }];
@@ -352,7 +352,7 @@ export const hintRef = (key: string, protyle: IProtyle, source: THintSource): IH
         k: key,
         id: nodeElement ? nodeElement.getAttribute("data-node-id") : protyle.block.parentID,
         beforeLen: Math.floor((Math.max(protyle.element.clientWidth / 2, 320) - 58) / 28.8),
-        rootID: protyle.block.rootID,
+        rootID: source === "av" ? "" : protyle.block.rootID,
         isSquareBrackets: ["[[", "【【"].includes(protyle.hint.splitChar)
     }, (response) => {
         const dataList: IHintData[] = [];
@@ -447,7 +447,9 @@ export const hintRenderTemplate = (value: string, protyle: IProtyle, nodeElement
 
 export const hintRenderWidget = (value: string, protyle: IProtyle) => {
     focusByRange(protyle.toolbar.range);
-    insertHTML(protyle.lute.SpinBlockDOM(`<iframe src="/widgets/${value}" data-subtype="widget" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>`), protyle, true);
+    // src 地址以 / 结尾
+    // Use the path ending with `/` when loading the widget https://github.com/siyuan-note/siyuan/issues/10520
+    insertHTML(protyle.lute.SpinBlockDOM(`<iframe src="/widgets/${value}/" data-subtype="widget" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>`), protyle, true);
     hideElements(["util"], protyle);
 };
 

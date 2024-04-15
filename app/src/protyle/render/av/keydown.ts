@@ -1,6 +1,6 @@
 import {matchHotKey} from "../../util/hotKey";
 import {deleteRow, selectRow} from "./row";
-import {cellScrollIntoView, popTextCell, updateCellsValue} from "./cell";
+import {addDragFill, cellScrollIntoView, popTextCell, updateCellsValue} from "./cell";
 import {avContextmenu} from "./action";
 import {hasClosestByClassName} from "../../util/hasClosest";
 import {Constants} from "../../../constants";
@@ -28,15 +28,17 @@ export const avKeydown = (event: KeyboardEvent, nodeElement: HTMLElement, protyl
             event.preventDefault();
             return true;
         }
-        // 复制、粘贴
-        if (!event.ctrlKey && !event.metaKey) {
-            nodeElement.querySelectorAll(".av__cell--active").forEach(item => {
-                item.classList.remove("av__cell--active");
-                item.querySelector(".av__drag-fill")?.remove();
-            });
+        const avPanelElement = document.querySelector(".av__panel");
+        if (avPanelElement &&
+            (event.key === "Escape" || event.key.startsWith("ArrowLeft") || event.key === "Enter" || matchHotKey("⇥", event) || matchHotKey("⇧⇥", event))) {
+            avPanelElement.remove();
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
         }
         if (event.key === "Escape") {
-            selectCellElement.classList.remove("av__cell--select");
+            selectCellElement.classList.remove("av__cell--select", "av__cell--active");
+            selectCellElement.querySelector(".av__drag-fill")?.remove();
             selectRow(rowElement.querySelector(".av__firstcol"), "select");
             event.preventDefault();
             return true;
@@ -60,8 +62,10 @@ export const avKeydown = (event: KeyboardEvent, nodeElement: HTMLElement, protyl
                 newCellElement = previousCellElements[previousCellElements.length - 1];
             }
             if (newCellElement) {
-                selectCellElement.classList.remove("av__cell--select");
+                selectCellElement.classList.remove("av__cell--select", "av__cell--active");
+                selectCellElement.querySelector(".av__drag-fill")?.remove();
                 newCellElement.classList.add("av__cell--select");
+                addDragFill(newCellElement);
                 cellScrollIntoView(nodeElement, newCellElement, false);
             }
             event.preventDefault();
@@ -77,8 +81,10 @@ export const avKeydown = (event: KeyboardEvent, nodeElement: HTMLElement, protyl
                 newCellElement = nextRowElement.querySelector(".av__cell");
             }
             if (newCellElement) {
-                selectCellElement.classList.remove("av__cell--select");
+                selectCellElement.classList.remove("av__cell--select", "av__cell--active");
+                selectCellElement.querySelector(".av__drag-fill")?.remove();
                 newCellElement.classList.add("av__cell--select");
+                addDragFill(newCellElement);
                 cellScrollIntoView(nodeElement, newCellElement, false);
             }
             event.preventDefault();
@@ -90,8 +96,10 @@ export const avKeydown = (event: KeyboardEvent, nodeElement: HTMLElement, protyl
                 newCellElement = previousRowElement.querySelector(`.av__cell[data-col-id="${selectCellElement.dataset.colId}"]`);
             }
             if (newCellElement) {
-                selectCellElement.classList.remove("av__cell--select");
+                selectCellElement.classList.remove("av__cell--select", "av__cell--active");
+                selectCellElement.querySelector(".av__drag-fill")?.remove();
                 newCellElement.classList.add("av__cell--select");
+                addDragFill(newCellElement);
                 cellScrollIntoView(nodeElement, newCellElement);
             }
             event.preventDefault();
@@ -103,8 +111,10 @@ export const avKeydown = (event: KeyboardEvent, nodeElement: HTMLElement, protyl
                 newCellElement = nextRowElement.querySelector(`.av__cell[data-col-id="${selectCellElement.dataset.colId}"]`);
             }
             if (newCellElement) {
-                selectCellElement.classList.remove("av__cell--select");
+                selectCellElement.classList.remove("av__cell--select", "av__cell--active");
+                selectCellElement.querySelector(".av__drag-fill")?.remove();
                 newCellElement.classList.add("av__cell--select");
+                addDragFill(newCellElement);
                 cellScrollIntoView(nodeElement, newCellElement);
             }
             event.preventDefault();

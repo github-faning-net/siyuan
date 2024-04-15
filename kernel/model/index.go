@@ -36,6 +36,7 @@ import (
 	"github.com/siyuan-note/eventbus"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
+	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/sql"
@@ -143,6 +144,7 @@ func index(boxID string) {
 		poolSize = 4
 	}
 	waitGroup := &sync.WaitGroup{}
+	var avNodes []*ast.Node
 	p, _ := ants.NewPoolWithFunc(poolSize, func(arg interface{}) {
 		defer waitGroup.Done()
 
@@ -168,9 +170,13 @@ func index(boxID string) {
 			}
 		}
 
+		lock.Lock()
+		avNodes = append(avNodes, tree.Root.ChildrenByType(ast.NodeAttributeView)...)
+		lock.Unlock()
+
 		cache.PutDocIAL(file.path, docIAL)
 		treenode.IndexBlockTree(tree)
-		sql.IndexTreeQueue(box.ID, file.path)
+		sql.IndexTreeQueue(tree)
 		util.IncBootProgress(bootProgressPart, fmt.Sprintf(Conf.Language(92), util.ShortPathForBootingDisplay(tree.Path)))
 		if 1 < i && 0 == i%64 {
 			util.PushStatusBar(fmt.Sprintf(Conf.Language(88), i, (len(files))-i))
@@ -190,6 +196,9 @@ func index(boxID string) {
 	}
 	waitGroup.Wait()
 	p.Release()
+
+	// 关联数据库和块
+	av.BatchUpsertBlockRel(avNodes)
 
 	box.UpdateHistoryGenerated() // 初始化历史生成时间为当前时间
 	end := time.Now()
@@ -253,7 +262,7 @@ func IndexRefs() {
 		bootProgressPart := int32(10.0 / float64(size))
 
 		for _, defBlockID := range defBlockIDs {
-			defTree, loadErr := LoadTreeByID(defBlockID)
+			defTree, loadErr := LoadTreeByBlockID(defBlockID)
 			if nil != loadErr {
 				continue
 			}
@@ -268,6 +277,8 @@ func IndexRefs() {
 	}
 	logging.LogInfof("resolved refs [%d] in [%dms]", size, time.Now().Sub(start).Milliseconds())
 	util.PushStatusBar(fmt.Sprintf(Conf.Language(55), i))
+
+	ResetVirtualBlockRefCache()
 }
 
 // IndexEmbedBlockJob 嵌入块支持搜索 https://github.com/siyuan-note/siyuan/issues/7112
@@ -351,13 +362,23 @@ func subscribeSQLEvents() {
 	})
 	eventbus.Subscribe(eventbus.EvtSQLDeleteBlocks, func(context map[string]interface{}, rootID string) {
 		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
-			// Android/iOS 端不显示数据索引和搜索索引状态提示 https://github.com/siyuan-note/siyuan/issues/6392
 			return
 		}
 
 		current := context["current"].(int)
 		total := context["total"]
 		msg := fmt.Sprintf(Conf.Language(93), current, total, rootID)
+		util.SetBootDetails(msg)
+		util.ContextPushMsg(context, msg)
+	})
+	eventbus.Subscribe(eventbus.EvtSQLUpdateBlocksHPaths, func(context map[string]interface{}, blockCount int, hash string) {
+		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
+			return
+		}
+
+		current := context["current"].(int)
+		total := context["total"]
+		msg := fmt.Sprintf(Conf.Language(234), current, total, blockCount, hash)
 		util.SetBootDetails(msg)
 		util.ContextPushMsg(context, msg)
 	})

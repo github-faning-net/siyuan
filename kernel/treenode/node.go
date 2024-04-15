@@ -182,7 +182,8 @@ func NodeStaticContent(node *ast.Node, excludeTypes []string, includeTextMarkATi
 			return getAttributeViewContent(node.AttributeViewID)
 		}
 
-		return getAttributeViewName(node.AttributeViewID)
+		ret, _ := av.GetAttributeViewName(node.AttributeViewID)
+		return ret
 	}
 
 	buf := bytes.Buffer{}
@@ -545,49 +546,6 @@ func IsChartCodeBlockCode(code *ast.Node) bool {
 	return render.NoHighlight(language)
 }
 
-func GetAttributeViewName(avID string) (name string) {
-	if "" == avID {
-		return
-	}
-
-	attrView, err := av.ParseAttributeView(avID)
-	if nil != err {
-		logging.LogErrorf("parse attribute view [%s] failed: %s", avID, err)
-		return
-	}
-
-	buf := bytes.Buffer{}
-	for _, v := range attrView.Views {
-		buf.WriteString(v.Name)
-		buf.WriteByte(' ')
-	}
-
-	name = strings.TrimSpace(buf.String())
-	return
-}
-
-func getAttributeViewName(avID string) (name string) {
-	if "" == avID {
-		return
-	}
-
-	attrView, err := av.ParseAttributeView(avID)
-	if nil != err {
-		logging.LogErrorf("parse attribute view [%s] failed: %s", avID, err)
-		return
-	}
-
-	buf := bytes.Buffer{}
-	buf.WriteString(attrView.Name)
-	buf.WriteByte(' ')
-	for _, v := range attrView.Views {
-		buf.WriteString(v.Name)
-		buf.WriteByte(' ')
-	}
-	name = strings.TrimSpace(buf.String())
-	return
-}
-
 func getAttributeViewContent(avID string) (content string) {
 	if "" == avID {
 		return
@@ -676,6 +634,7 @@ func renderAttributeViewTable(attrView *av.AttributeView, view *av.View) (ret *a
 			Template:     key.Template,
 			Relation:     key.Relation,
 			Rollup:       key.Rollup,
+			Date:         key.Date,
 			Wrap:         col.Wrap,
 			Hidden:       col.Hidden,
 			Width:        col.Width,
@@ -805,7 +764,12 @@ func renderAttributeViewTable(attrView *av.AttributeView, view *av.View) (ret *a
 				for _, blockID := range relVal.Relation.BlockIDs {
 					destVal := destAv.GetValue(rollupKey.Rollup.KeyID, blockID)
 					if nil == destVal {
-						destVal = GetAttributeViewDefaultValue(ast.NewNodeID(), rollupKey.Rollup.KeyID, blockID, destKey.Type)
+						if destAv.ExistBlock(blockID) { // 数据库中存在行但是列值不存在是数据未初始化，这里补一个默认值
+							destVal = GetAttributeViewDefaultValue(ast.NewNodeID(), rollupKey.Rollup.KeyID, blockID, destKey.Type)
+						}
+						if nil == destVal {
+							continue
+						}
 					}
 					if av.KeyTypeNumber == destKey.Type {
 						destVal.Number.Format = destKey.NumberFormat
@@ -827,9 +791,9 @@ func renderAttributeViewTable(attrView *av.AttributeView, view *av.View) (ret *a
 				if nil != relKey && nil != relKey.Relation {
 					destAv, _ := av.ParseAttributeView(relKey.Relation.AvID)
 					if nil != destAv {
-						blocks := map[string]string{}
+						blocks := map[string]*av.Value{}
 						for _, blockValue := range destAv.GetBlockKeyValues().Values {
-							blocks[blockValue.BlockID] = blockValue.Block.Content
+							blocks[blockValue.BlockID] = blockValue
 						}
 						for _, blockID := range cell.Value.Relation.BlockIDs {
 							cell.Value.Relation.Contents = append(cell.Value.Relation.Contents, blocks[blockID])
@@ -896,7 +860,7 @@ func renderAttributeViewTable(attrView *av.AttributeView, view *av.View) (ret *a
 						ial = map[string]string{}
 					}
 				}
-				content := renderTemplateCol(ial, cell.Value.Template.Content, keyValues)
+				content := renderTemplateCol(ial, keyValues, cell.Value.Template.Content)
 				cell.Value.Template.Content = content
 			}
 		}
@@ -1028,7 +992,7 @@ func GetAttributeViewDefaultValue(valueID, keyID, blockID string, typ av.KeyType
 	return
 }
 
-func renderTemplateCol(ial map[string]string, tplContent string, rowValues []*av.KeyValues) string {
+func renderTemplateCol(ial map[string]string, rowValues []*av.KeyValues, tplContent string) string {
 	if "" == ial["id"] {
 		block := getRowBlockValue(rowValues)
 		ial["id"] = block.Block.ID
@@ -1073,18 +1037,29 @@ func renderTemplateCol(ial map[string]string, tplContent string, rowValues []*av
 			dataModel["updated"] = time.Now()
 		}
 	}
+
 	for _, rowValue := range rowValues {
 		if 0 < len(rowValue.Values) {
 			v := rowValue.Values[0]
 			if av.KeyTypeNumber == v.Type {
-				dataModel[rowValue.Key.Name] = v.Number.Content
+				if nil != v.Number && v.Number.IsNotEmpty {
+					dataModel[rowValue.Key.Name] = v.Number.Content
+				}
 			} else if av.KeyTypeDate == v.Type {
-				dataModel[rowValue.Key.Name] = time.UnixMilli(v.Date.Content)
+				if nil != v.Date && v.Date.IsNotEmpty {
+					dataModel[rowValue.Key.Name] = time.UnixMilli(v.Date.Content)
+				}
+			} else if av.KeyTypeRollup == v.Type {
+				if 0 < len(v.Rollup.Contents) && av.KeyTypeNumber == v.Rollup.Contents[0].Type {
+					// 汇总数字时仅取第一个数字填充模板
+					dataModel[rowValue.Key.Name] = v.Rollup.Contents[0].Number.Content
+				}
 			} else {
 				dataModel[rowValue.Key.Name] = v.String()
 			}
 		}
 	}
+
 	if err := tpl.Execute(buf, dataModel); nil != err {
 		logging.LogWarnf("execute template [%s] failed: %s", tplContent, err)
 	}

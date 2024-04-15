@@ -40,13 +40,13 @@ export const openBacklink = async (options: {
         }
         options.rootId = response.data.rootID;
         options.useBlockId = response.data.rootID !== response.data.id;
-        options.title = response.data.name || "Untitled";
+        options.title = response.data.name || window.siyuan.languages.untitled;
     } else if (!options.title) {
         const response = await fetchSyncPost("api/block/getDocInfo", {id: options.blockId});
         if (response.code === -1) {
             return;
         }
-        options.title = response.data.name || "Untitled";
+        options.title = response.data.name || window.siyuan.languages.untitled;
     }
     const newWnd = wnd.split("lr");
     newWnd.addTab(new Tab({
@@ -96,13 +96,13 @@ export const openGraph = async (options: {
         }
         options.rootId = response.data.rootID;
         options.useBlockId = response.data.rootID !== response.data.id;
-        options.title = response.data.name || "Untitled";
+        options.title = response.data.name || window.siyuan.languages.untitled;
     } else if (!options.title) {
         const response = await fetchSyncPost("api/block/getDocInfo", {id: options.blockId});
         if (response.code === -1) {
             return;
         }
-        options.title = response.data.name || "Untitled";
+        options.title = response.data.name || window.siyuan.languages.untitled;
     }
     const newWnd = wnd.split("lr");
     newWnd.addTab(new Tab({
@@ -142,9 +142,9 @@ export const openOutline = async (protyle: IProtyle) => {
     let title = "";
     if (!protyle.title) {
         const response = await fetchSyncPost("api/block/getDocInfo", {id: protyle.block.rootID});
-        title = response.data.name || "Untitled";
+        title = response.data.name || window.siyuan.languages.untitled;
     } else {
-        title = protyle.title.editElement.textContent || "Untitled";
+        title = protyle.title.editElement.textContent || window.siyuan.languages.untitled;
     }
     newWnd.addTab(new Tab({
         icon: "iconAlignCenter",
@@ -195,4 +195,42 @@ export const toggleDockBar = (useElement: Element) => {
     });
     resizeTabs();
     resetFloatDockSize();
+};
+
+export const clearOBG = () => {
+    const models = getAllModels();
+    models.outline.find(item => {
+        if (item.type === "pin") {
+            if ("" === item.blockId) {
+                return;
+            }
+            item.isPreview = false;
+            item.update({data: [], msg: "", code: 0}, "");
+            item.updateDocTitle();
+        }
+    });
+    models.graph.forEach(item => {
+        if (item.type !== "global") {
+            if (item.type === "local") {
+                return;
+            }
+            if ("" === item.blockId) {
+                return;
+            }
+            item.blockId = "";
+            item.graphData = undefined;
+            item.onGraph(false);
+        }
+    });
+    models.backlink.forEach(item => {
+        if (item.type === "local") {
+            return;
+        }
+        if ("" === item.blockId) {
+            return;
+        }
+        item.saveStatus();
+        item.blockId = "";
+        item.render(undefined);
+    });
 };

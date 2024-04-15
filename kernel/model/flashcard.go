@@ -38,6 +38,40 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func GetFlashcardsByBlockIDs(blockIDs []string) (ret []*Block) {
+	deckLock.Lock()
+	defer deckLock.Unlock()
+
+	waitForSyncingStorages()
+
+	ret = []*Block{}
+	deck := Decks[builtinDeckID]
+	if nil == deck {
+		return
+	}
+
+	cards := deck.GetCardsByBlockIDs(blockIDs)
+	blocks, _, _ := getCardsBlocks(cards, 1, math.MaxInt)
+
+	for _, blockID := range blockIDs {
+		found := false
+		for _, block := range blocks {
+			if blockID == block.ID {
+				found = true
+				ret = append(ret, block)
+				break
+			}
+		}
+		if !found {
+			ret = append(ret, &Block{
+				ID:      blockID,
+				Content: Conf.Language(180),
+			})
+		}
+	}
+	return
+}
+
 type SetFlashcardDueTime struct {
 	ID  string `json:"id"`  // 卡片 ID
 	Due string `json:"due"` // 下次复习时间，格式为 YYYYMMDDHHmmss
@@ -475,11 +509,11 @@ type Flashcard struct {
 	Lapses     int                    `json:"lapses"`
 	Reps       int                    `json:"reps"`
 	State      riff.State             `json:"state"`
-	LastReview time.Time              `json:"lastReview"`
+	LastReview int64                  `json:"lastReview"`
 	NextDues   map[riff.Rating]string `json:"nextDues"`
 }
 
-func newFlashcard(card riff.Card, blockID, deckID string, now time.Time) *Flashcard {
+func newFlashcard(card riff.Card, deckID string, now time.Time) *Flashcard {
 	nextDues := map[riff.Rating]string{}
 	for rating, due := range card.NextDues() {
 		nextDues[rating] = strings.TrimSpace(util.HumanizeDiffTime(due, now, Conf.Lang))
@@ -488,11 +522,11 @@ func newFlashcard(card riff.Card, blockID, deckID string, now time.Time) *Flashc
 	return &Flashcard{
 		DeckID:     deckID,
 		CardID:     card.ID(),
-		BlockID:    blockID,
+		BlockID:    card.BlockID(),
 		Lapses:     card.GetLapses(),
 		Reps:       card.GetReps(),
 		State:      card.GetState(),
-		LastReview: card.GetLastReview(),
+		LastReview: card.GetLastReview().UnixMilli(),
 		NextDues:   nextDues,
 	}
 }
@@ -538,7 +572,7 @@ func GetNotebookDueFlashcards(boxID string, reviewedCardIDs []string) (ret []*Fl
 	cards, unreviewedCnt, unreviewedNewCardCnt, unreviewedOldCardCnt := getDeckDueCards(deck, reviewedCardIDs, treeBlockIDs, Conf.Flashcard.NewCardLimit, Conf.Flashcard.ReviewCardLimit, Conf.Flashcard.ReviewMode)
 	now := time.Now()
 	for _, card := range cards {
-		ret = append(ret, newFlashcard(card, card.BlockID(), builtinDeckID, now))
+		ret = append(ret, newFlashcard(card, builtinDeckID, now))
 	}
 	if 1 > len(ret) {
 		ret = []*Flashcard{}
@@ -583,7 +617,7 @@ func GetTreeDueFlashcards(rootID string, reviewedCardIDs []string) (ret []*Flash
 	cards, unreviewedCnt, unreviewedNewCardCnt, unreviewedOldCardCnt := getDeckDueCards(deck, reviewedCardIDs, treeBlockIDs, newCardLimit, reviewCardLimit, Conf.Flashcard.ReviewMode)
 	now := time.Now()
 	for _, card := range cards {
-		ret = append(ret, newFlashcard(card, card.BlockID(), builtinDeckID, now))
+		ret = append(ret, newFlashcard(card, builtinDeckID, now))
 	}
 	if 1 > len(ret) {
 		ret = []*Flashcard{}
@@ -654,7 +688,7 @@ func getDueFlashcards(deckID string, reviewedCardIDs []string) (ret []*Flashcard
 	cards, unreviewedCnt, unreviewedNewCardCnt, unreviewedOldCardCnt := getDeckDueCards(deck, reviewedCardIDs, nil, Conf.Flashcard.NewCardLimit, Conf.Flashcard.ReviewCardLimit, Conf.Flashcard.ReviewMode)
 	now := time.Now()
 	for _, card := range cards {
-		ret = append(ret, newFlashcard(card, card.BlockID(), deckID, now))
+		ret = append(ret, newFlashcard(card, deckID, now))
 	}
 	if 1 > len(ret) {
 		ret = []*Flashcard{}
@@ -668,12 +702,18 @@ func getDueFlashcards(deckID string, reviewedCardIDs []string) (ret []*Flashcard
 func getAllDueFlashcards(reviewedCardIDs []string) (ret []*Flashcard, unreviewedCount, unreviewedNewCardCount, unreviewedOldCardCount int) {
 	now := time.Now()
 	for _, deck := range Decks {
+		if deck.ID != builtinDeckID {
+			// Alt+0 闪卡复习入口不再返回卡包闪卡
+			// Alt+0 flashcard review entry no longer returns to card deck flashcards https://github.com/siyuan-note/siyuan/issues/10635
+			continue
+		}
+
 		cards, unreviewedCnt, unreviewedNewCardCnt, unreviewedOldCardCnt := getDeckDueCards(deck, reviewedCardIDs, nil, Conf.Flashcard.NewCardLimit, Conf.Flashcard.ReviewCardLimit, Conf.Flashcard.ReviewMode)
 		unreviewedCount += unreviewedCnt
 		unreviewedNewCardCount += unreviewedNewCardCnt
 		unreviewedOldCardCount += unreviewedOldCardCnt
 		for _, card := range cards {
-			ret = append(ret, newFlashcard(card, card.BlockID(), deck.ID, now))
+			ret = append(ret, newFlashcard(card, deck.ID, now))
 		}
 	}
 	if 1 > len(ret) {

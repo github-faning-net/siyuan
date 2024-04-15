@@ -187,6 +187,7 @@ export abstract class Constants {
         zh_CHT: "20211226090932-5lcq56f",
         en_US: "20210808180117-6v0mkxr",
         fr_FR: "20210808180117-6v0mkxr",
+        es_ES: "20210808180117-6v0mkxr",
     };
     public static readonly QUICK_DECK_ID = "20230218211946-2kw8jgx";
 
@@ -286,7 +287,7 @@ export abstract class Constants {
     // "⌘", "⇧", "⌥", "⌃"
     // "⌘A", "⌘X", "⌘C", "⌘V", "⌘-", "⌘=", "⌘0", "⇧⌘V", "⌘/", "⇧↑", "⇧↓", "⇧→", "⇧←", "⇧⇥", "⌃D", "⇧⌘→", "⇧⌘←",
     // "⌘Home", "⌘End", "⇧↩", "↩", "PageUp", "PageDown", "⌫", "⌦", "Escape" 不可自定义
-    public static readonly SIYUAN_KEYMAP: IKeymap = {
+    public static readonly SIYUAN_KEYMAP: Config.IKeymap = {
         general: {
             mainMenu: {default: "⌥\\", custom: "⌥\\"},
             commandPanel: {default: "⌥⇧P", custom: "⌥⇧P"},
@@ -343,6 +344,7 @@ export abstract class Constants {
             closeLeft: {default: "", custom: ""},
             closeRight: {default: "", custom: ""},
             tabToWindow: {default: "", custom: ""},
+            addToDatabase: {default: "", custom: ""},
         },
         editor: {
             general: {
@@ -360,6 +362,7 @@ export abstract class Constants {
                 refPopover: {default: "", custom: ""},
                 copyText: {default: "", custom: ""},
                 exitFocus: {default: "", custom: ""},
+                ai: {default: "", custom: ""},
                 switchReadonly: {default: "", custom: ""},
                 expand: {default: "⌘↓", custom: "⌘↓"},
                 collapse: {default: "⌘↑", custom: "⌘↑"},
@@ -395,7 +398,7 @@ export abstract class Constants {
                 insertAfter: {default: "⇧⌘A", custom: "⇧⌘A"},
                 jumpToParentNext: {default: "⇧⌘N", custom: "⇧⌘N"},
                 moveToUp: {default: "⇧⌘↑", custom: "⇧⌘↑"},
-                moveToDown: {default: "⇧⌘↓", custom: "⇧⌘↓"},
+                moveToDown: {default: "⇧⌘↓", custom: "⇧⌘↓"}
             },
             insert: {
                 appearance: {default: "⌥⌘X", custom: "⌥⌘X"},
@@ -449,7 +452,7 @@ export abstract class Constants {
         plugin: {},
     };
 
-    public static readonly SIYUAN_EMPTY_LAYOUT: Record<string, unknown> = {
+    public static readonly SIYUAN_EMPTY_LAYOUT: Config.IUiLayout = {
         hideDock: false,
         layout: {
             "direction": "tb",
@@ -480,7 +483,13 @@ export abstract class Constants {
                     "size": "auto",
                     "type": "center",
                     "instance": "Layout",
-                    "children": [{"instance": "Wnd", "children": [{"instance": "Tab", "children": []}]}]
+                    "children": [{
+                        "instance": "Wnd",
+                        "children": [{
+                            "instance": "Tab",
+                            "children": []
+                        }]
+                    }]
                 }, {
                     "direction": "tb",
                     "size": "0px",
@@ -521,13 +530,13 @@ export abstract class Constants {
             data: [
                 [{
                     type: "file",
-                    size: {width: 227, height: 0},
+                    size: {width: 232, height: 0},
                     show: true,
                     icon: "iconFiles",
                     hotkeyLangId: "fileTree",
                 }, {
                     type: "outline",
-                    size: {width: 227, height: 0},
+                    size: {width: 232, height: 0},
                     show: false,
                     icon: "iconAlignCenter",
                     hotkeyLangId: "outline",
@@ -539,13 +548,13 @@ export abstract class Constants {
                     hotkeyLangId: "inbox",
                 }], [{
                     type: "bookmark",
-                    size: {width: 227, height: 0},
+                    size: {width: 232, height: 0},
                     show: false,
                     icon: "iconBookmark",
                     hotkeyLangId: "bookmark",
                 }, {
                     type: "tag",
-                    size: {width: 227, height: 0},
+                    size: {width: 232, height: 0},
                     show: false,
                     icon: "iconTags",
                     hotkeyLangId: "tag",
@@ -578,9 +587,7 @@ export abstract class Constants {
         }
     };
 
-    public static readonly SIYUAN_DEFAULT_REPLACETYPES: {
-        [key: string]: boolean;
-    } = {
+    public static readonly SIYUAN_DEFAULT_REPLACETYPES: Required<Config.IUILayoutTabSearchConfigReplaceTypes> = {
         "text": true,
         "imgText": true,
         "imgTitle": true,
@@ -667,6 +674,9 @@ export abstract class Constants {
     // third: "yul", "solidity", "abap", "hlsl", "gdscript"
     public static readonly ALIAS_CODE_LANGUAGES: string[] = [
         "js", "ts", "html", "toml", "c#", "bat",
+    ];
+    public static readonly SIYUAN_RENDER_CODE_LANGUAGES: string[] = [
+        "abc", "plantuml", "mermaid", "flowchart", "echarts", "mindmap", "graphviz", "math"
     ];
 
     // Google Analytics 事件

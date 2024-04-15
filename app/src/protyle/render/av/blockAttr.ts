@@ -12,7 +12,11 @@ const genAVRollupHTML = (value: IAVCellValue) => {
     let html = "";
     switch (value.type) {
         case "block":
-            html = value.block.content;
+            if (value?.isDetached) {
+                html = `<span data-id="${value.block?.id}">${value.block?.content || window.siyuan.languages.untitled}</span>`;
+            } else {
+                html = `<span data-type="block-ref" data-id="${value.block?.id}" data-subtype="s" class="av__celltext--ref">${value.block?.content || window.siyuan.languages.untitled}</span>`;
+            }
             break;
         case "text":
             html = value.text.content;
@@ -109,19 +113,27 @@ export const genAVValueHTML = (value: IAVCellValue) => {
 <a href="mailto:${value.email.content}" target="_blank" aria-label="${window.siyuan.languages.openBy}" class="block__icon block__icon--show fn__flex-center b3-tooltips__w b3-tooltips"><svg><use xlink:href="#iconEmail"></use></svg></a>`;
             break;
         case "relation":
-            value.relation?.blockIDs?.forEach((item, index) => {
-                html += `<span class="av__celltext--url" style="margin-right: 8px" data-id="${item}">${value.relation?.contents[index] || "Untitled"}</span>`;
+            value?.relation?.contents?.forEach((item) => {
+                if (item) {
+                    const rollupText = genAVRollupHTML(item);
+                    if (rollupText) {
+                        html += rollupText + ",&nbsp;";
+                    }
+                }
             });
+            if (html && html.endsWith(",&nbsp;")) {
+                html = html.substring(0, html.length - 7);
+            }
             break;
         case "rollup":
             value?.rollup?.contents?.forEach((item) => {
                 const rollupText = ["select", "mSelect", "mAsset", "checkbox", "relation"].includes(item.type) ? genAVValueHTML(item) : genAVRollupHTML(item);
                 if (rollupText) {
-                    html += rollupText + ", ";
+                    html += rollupText + ",&nbsp;";
                 }
             });
-            if (html && html.endsWith(", ")) {
-                html = html.substring(0, html.length - 2);
+            if (html && html.endsWith(",&nbsp;")) {
+                html = html.substring(0, html.length - 7);
             }
             break;
     }
@@ -163,7 +175,7 @@ export const renderAVAttribute = (element: HTMLElement, id: string, protyle: IPr
             table.keyValues?.forEach(item => {
                 html += `<div class="block__icons av__row" data-id="${id}" data-col-id="${item.key.id}">
     <div class="block__icon" draggable="true"><svg><use xlink:href="#iconDrag"></use></svg></div>
-    <div class="block__logo ariaLabel${item.values[0].type === "block" ? "" : " fn__pointer"}" data-type="editCol" data-position="parentW" aria-label="${escapeAttr(item.key.name)}">
+    <div class="block__logo ariaLabel fn__pointer" data-type="editCol" data-position="parentW" aria-label="${escapeAttr(item.key.name)}">
         ${item.key.icon ? unicode2Emoji(item.key.icon, "block__logoicon", true) : `<svg class="block__logoicon"><use xlink:href="#${getColIconByType(item.key.type)}"></use></svg>`}
         <span>${item.key.name}</span>
     </div>
@@ -314,14 +326,12 @@ class="fn__flex-1 fn__flex${["url", "text", "number", "email", "phone", "block"]
                         event.preventDefault();
                         break;
                     } else if (type === "editCol") {
-                        if (target.classList.contains("fn__pointer")) {
-                            openMenuPanel({
-                                protyle,
-                                blockElement,
-                                type: "edit",
-                                colId: target.parentElement.dataset.colId
-                            });
-                        }
+                        openMenuPanel({
+                            protyle,
+                            blockElement,
+                            type: "edit",
+                            colId: target.parentElement.dataset.colId
+                        });
                         event.stopPropagation();
                         event.preventDefault();
                         break;

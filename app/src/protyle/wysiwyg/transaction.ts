@@ -122,6 +122,9 @@ const promiseTransaction = () => {
                             item.remove();
                         }
                     });
+                    if (protyle.disabled) {
+                        disabledProtyle(protyle);
+                    }
                     processRender(protyle.wysiwyg.element);
                     highlightRender(protyle.wysiwyg.element);
                     avRender(protyle.wysiwyg.element, protyle);
@@ -402,6 +405,9 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, isUndo: 
             }
         });
         if (operation.retData) {
+            if (protyle.disabled) {
+                disabledProtyle(protyle);
+            }
             processRender(protyle.wysiwyg.element);
             highlightRender(protyle.wysiwyg.element);
             avRender(protyle.wysiwyg.element, protyle);
@@ -493,14 +499,17 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, isUndo: 
                 aliasHTML = `<div class="protyle-attr--alias"><svg><use xlink:href="#iconA"></use></svg>${escapeHTML}</div>`;
             } else if (key === "memo") {
                 memoHTML = `<div class="protyle-attr--memo b3-tooltips b3-tooltips__sw" aria-label="${escapeHTML}"><svg><use xlink:href="#iconM"></use></svg></div>`;
-            } else if (key === "custom-avs") {
-                avHTML = "<div class=\"protyle-attr--av\"><svg><use xlink:href=\"#iconDatabase\"></use></svg></div>";
+            } else if (key === "custom-avs" && data.new["av-names"]) {
+                avHTML = `<div class="protyle-attr--av"><svg><use xlink:href="#iconDatabase"></use></svg>${data.new["av-names"]}</div>`;
             }
         });
         let nodeAttrHTML = bookmarkHTML + nameHTML + aliasHTML + memoHTML + avHTML;
         if (protyle.block.rootID === operation.id) {
             // 文档
             if (protyle.title) {
+                if (data.new["custom-avs"] && !data.new["av-names"]) {
+                    nodeAttrHTML += protyle.title.element.querySelector(".protyle-attr--av")?.outerHTML || "";
+                }
                 const refElement = protyle.title.element.querySelector(".protyle-attr--refcount");
                 if (refElement) {
                     nodeAttrHTML += refElement.outerHTML;
@@ -562,10 +571,19 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, isUndo: 
                 if (key === Constants.CUSTOM_RIFF_DECKS && data.new[Constants.CUSTOM_RIFF_DECKS] !== data.old[Constants.CUSTOM_RIFF_DECKS]) {
                     item.style.animation = "addCard 450ms linear";
                     setTimeout(() => {
-                        item.style.animation = "";
+                        if (item.parentElement) {
+                            item.style.animation = "";
+                        } else {
+                            protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`).forEach((realItem: HTMLElement) => {
+                                realItem.style.animation = "";
+                            });
+                        }
                     }, 450);
                 }
             });
+            if (data.new["custom-avs"] && !data.new["av-names"]) {
+                nodeAttrHTML += item.lastElementChild.querySelector(".protyle-attr--av")?.outerHTML || "";
+            }
             const refElement = item.lastElementChild.querySelector(".protyle-attr--refcount");
             if (refElement) {
                 nodeAttrHTML += refElement.outerHTML;
@@ -716,9 +734,13 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, isUndo: 
         });
         // 更新 ws 引用块
         updateRef(protyle, operation.id);
-    } else if (operation.action === "append") {
+        return;
+    }
+    if (operation.action === "append") {
         reloadProtyle(protyle, false);
-    } else if (["addAttrViewCol", "insertAttrViewBlock", "updateAttrViewCol", "updateAttrViewColOptions",
+        return;
+    }
+    if (["addAttrViewCol", "insertAttrViewBlock", "updateAttrViewCol", "updateAttrViewColOptions",
         "updateAttrViewColOption", "updateAttrViewCell", "sortAttrViewRow", "sortAttrViewCol", "setAttrViewColHidden",
         "setAttrViewColWrap", "setAttrViewColWidth", "removeAttrViewColOption", "setAttrViewName", "setAttrViewFilters",
         "setAttrViewSorts", "setAttrViewColCalc", "removeAttrViewCol", "updateAttrViewColNumberFormat", "removeAttrViewBlock",
@@ -726,10 +748,13 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, isUndo: 
         "removeAttrViewView", "setAttrViewViewName", "setAttrViewViewIcon", "duplicateAttrViewView", "sortAttrViewView",
         "updateAttrViewColRelation", "setAttrViewPageSize", "updateAttrViewColRollup"].includes(operation.action)) {
         refreshAV(protyle, operation);
-    } else if (operation.action === "doUpdateUpdated") {
+        return;
+    }
+    if (operation.action === "doUpdateUpdated") {
         updateElements.forEach(item => {
             item.setAttribute("updated", operation.data);
         });
+        return;
     }
 };
 
@@ -850,6 +875,7 @@ export const turnsIntoTransaction = (options: {
     type: TTurnInto,
     level?: number,
     isContinue?: boolean,
+    range?: Range
 }) => {
     let selectsElement: Element[] = options.selectsElement;
     let range: Range;
@@ -971,8 +997,8 @@ export const turnsIntoTransaction = (options: {
     highlightRender(options.protyle.wysiwyg.element);
     avRender(options.protyle.wysiwyg.element, options.protyle);
     blockRender(options.protyle, options.protyle.wysiwyg.element);
-    if (range) {
-        focusByWbr(options.protyle.wysiwyg.element, range);
+    if (range || options.range) {
+        focusByWbr(options.protyle.wysiwyg.element, range || options.range);
     } else {
         focusBlock(options.protyle.wysiwyg.element.querySelector(`[data-node-id="${selectsElement[0].getAttribute("data-node-id")}"]`));
     }

@@ -76,10 +76,10 @@ func ExportAv2CSV(avID, blockID string) (zipPath string, err error) {
 
 	name := util.FilterFileName(attrView.Name)
 	if "" == name {
-		name = "Untitled"
+		name = Conf.language(105)
 	}
 
-	table, err := renderAttributeViewTable(attrView, view)
+	table, err := renderAttributeViewTable(attrView, view, "")
 	if nil != err {
 		logging.LogErrorf("render attribute view [%s] table failed: %s", avID, err)
 		return
@@ -87,7 +87,7 @@ func ExportAv2CSV(avID, blockID string) (zipPath string, err error) {
 
 	// 遵循视图过滤和排序规则 Use filtering and sorting of current view settings when exporting database blocks https://github.com/siyuan-note/siyuan/issues/10474
 	table.FilterRows(attrView)
-	table.SortRows()
+	table.SortRows(attrView)
 
 	exportFolder := filepath.Join(util.TempDir, "export", "csv", name)
 	if err = os.MkdirAll(exportFolder, 0755); nil != err {
@@ -191,7 +191,7 @@ func ExportAv2CSV(avID, blockID string) (zipPath string, err error) {
 }
 
 func Export2Liandi(id string) (err error) {
-	tree, err := loadTreeByBlockID(id)
+	tree, err := LoadTreeByBlockID(id)
 	if nil != err {
 		logging.LogErrorf("load tree by block id [%s] failed: %s", id, err)
 		return
@@ -293,7 +293,7 @@ func Export2Liandi(id string) (err error) {
 
 	if !foundArticle {
 		articleId = result.Data.(string)
-		tree, _ = loadTreeByBlockID(id) // 这里必须重新加载，因为前面导出时已经修改了树结构
+		tree, _ = LoadTreeByBlockID(id) // 这里必须重新加载，因为前面导出时已经修改了树结构
 		tree.Root.SetIALAttr(liandiArticleIdAttrName, articleId)
 		if err = writeJSONQueue(tree); nil != err {
 			return
@@ -518,7 +518,7 @@ func ExportResources(resourcePaths []string, mainName string) (exportFilePath st
 }
 
 func Preview(id string) (retStdHTML string, retOutline []*Path) {
-	tree, _ := loadTreeByBlockID(id)
+	tree, _ := LoadTreeByBlockID(id)
 	tree = exportTree(tree, false, false, false,
 		Conf.Export.BlockRefMode, Conf.Export.BlockEmbedMode, Conf.Export.FileAnnotationRefMode,
 		Conf.Export.TagOpenMarker, Conf.Export.TagCloseMarker,
@@ -885,8 +885,8 @@ func prepareExportTree(bt *treenode.BlockTree) (ret *parse.Tree) {
 		oldRoot := ret.Root
 		ret = parse.Parse("", []byte(""), luteEngine.ParseOptions)
 		first := ret.Root.FirstChild
-		for _, node := range nodes {
-			first.InsertBefore(node)
+		for _, n := range nodes {
+			first.InsertBefore(n)
 		}
 		ret.Root.KramdownIAL = oldRoot.KramdownIAL
 	}
@@ -931,7 +931,7 @@ func processIFrame(tree *parse.Tree) {
 }
 
 func ProcessPDF(id, p string, merge, removeAssets, watermark bool) (err error) {
-	tree, _ := loadTreeByBlockID(id)
+	tree, _ := LoadTreeByBlockID(id)
 	if nil == tree {
 		return
 	}
@@ -1057,6 +1057,7 @@ func processPDFWatermark(pdfCtx *pdfcpu.Context, watermark bool) {
 		return
 	}
 
+	wm.OnTop = true // Export PDF and add watermarks no longer covered by images https://github.com/siyuan-note/siyuan/issues/10818
 	err = pdfCtx.AddWatermarks(nil, wm)
 	if nil != err {
 		logging.LogErrorf("add watermark failed: %s", err)
@@ -1319,7 +1320,7 @@ func processPDFLinkEmbedAssets(pdfCtx *pdfcpu.Context, assetDests []string, remo
 }
 
 func ExportStdMarkdown(id string) string {
-	tree, err := loadTreeByBlockID(id)
+	tree, err := LoadTreeByBlockID(id)
 	if nil != err {
 		logging.LogErrorf("load tree by block id [%s] failed: %s", id, err)
 		return ""
@@ -1375,7 +1376,7 @@ func BatchExportMarkdown(boxID, folderPath string) (zipPath string) {
 		baseFolderName = path.Base(block.HPath)
 	}
 	if "" == baseFolderName {
-		baseFolderName = "Untitled"
+		baseFolderName = Conf.language(105)
 	}
 
 	docFiles := box.ListFiles(folderPath)
@@ -1490,7 +1491,7 @@ func exportSYZip(boxID, rootDirPath, baseFolderName string, docPaths []string) (
 		}
 
 		id := docIAL["id"]
-		tree, err := loadTreeByBlockID(id)
+		tree, err := LoadTreeByBlockID(id)
 		if nil != err {
 			continue
 		}
@@ -1783,7 +1784,7 @@ func ExportMarkdownContent(id string) (hPath, exportedMd string) {
 }
 
 func exportMarkdownContent(id string, exportRefMode int, defBlockIDs []string) (hPath, exportedMd string) {
-	tree, err := loadTreeByBlockID(id)
+	tree, err := LoadTreeByBlockID(id)
 	if nil != err {
 		logging.LogErrorf("load tree by block id [%s] failed: %s", id, err)
 		return
@@ -2071,7 +2072,7 @@ func exportTree(tree *parse.Tree, wysiwyg, expandKaTexMacros, keepFold bool,
 		// 处理引用节点
 
 		defID, linkText := getExportBlockRefLinkText(n, blockRefTextLeft, blockRefTextRight)
-		defTree, _ := loadTreeByBlockID(defID)
+		defTree, _ := LoadTreeByBlockID(defID)
 		if nil == defTree {
 			return ast.WalkContinue
 		}
@@ -2107,13 +2108,34 @@ func exportTree(tree *parse.Tree, wysiwyg, expandKaTexMacros, keepFold bool,
 	}
 
 	if 4 == blockRefMode { // 块引转脚注
+		unlinks = nil
 		if footnotesDefBlock := resolveFootnotesDefs(&refFootnotes, ret.Root.ID, blockRefTextLeft, blockRefTextRight); nil != footnotesDefBlock {
+			// 如果是聚焦导出，可能存在没有使用的脚注定义块，在这里进行清理
+			// Improve focus export conversion of block refs to footnotes https://github.com/siyuan-note/siyuan/issues/10647
+			footnotesRefs := ret.Root.ChildrenByType(ast.NodeFootnotesRef)
+			for footnotesDef := footnotesDefBlock.FirstChild; nil != footnotesDef; footnotesDef = footnotesDef.Next {
+				exist := false
+				for _, ref := range footnotesRefs {
+					if ref.FootnotesRefId == footnotesDef.FootnotesRefId {
+						exist = true
+						break
+					}
+				}
+				if !exist {
+					unlinks = append(unlinks, footnotesDef)
+				}
+			}
+			for _, n := range unlinks {
+				n.Unlink()
+			}
+
 			ret.Root.AppendChild(footnotesDefBlock)
 		}
 	}
 
 	if addTitle {
 		if root, _ := getBlock(id, tree); nil != root {
+			root.IAL["type"] = "doc"
 			title := &ast.Node{Type: ast.NodeHeading, HeadingLevel: 1, KramdownIAL: parse.Map2IAL(root.IAL)}
 			content := html.UnescapeString(root.Content)
 			title.AppendChild(&ast.Node{Type: ast.NodeText, Tokens: []byte(content)})
@@ -2255,7 +2277,7 @@ func exportTree(tree *parse.Tree, wysiwyg, expandKaTexMacros, keepFold bool,
 			return ast.WalkContinue
 		}
 
-		table, err := renderAttributeViewTable(attrView, view)
+		table, err := renderAttributeViewTable(attrView, view, "")
 		if nil != err {
 			logging.LogErrorf("render attribute view [%s] table failed: %s", avID, err)
 			return ast.WalkContinue
@@ -2263,7 +2285,7 @@ func exportTree(tree *parse.Tree, wysiwyg, expandKaTexMacros, keepFold bool,
 
 		// 遵循视图过滤和排序规则 Use filtering and sorting of current view settings when exporting database blocks https://github.com/siyuan-note/siyuan/issues/10474
 		table.FilterRows(attrView)
-		table.SortRows()
+		table.SortRows(attrView)
 
 		var aligns []int
 		for range table.Columns {
@@ -2337,7 +2359,7 @@ func resolveFootnotesDefs(refFootnotes *[]*refAsFootnotes, rootID string, blockR
 	footnotesDefBlock = &ast.Node{Type: ast.NodeFootnotesDefBlock}
 	var rendered []string
 	for _, foot := range *refFootnotes {
-		t, err := loadTreeByBlockID(foot.defID)
+		t, err := LoadTreeByBlockID(foot.defID)
 		if nil != err {
 			continue
 		}
@@ -2464,7 +2486,7 @@ func collectFootnotesDefs(id string, refFootnotes *[]*refAsFootnotes, treeCache 
 	t := (*treeCache)[b.RootID]
 	if nil == t {
 		var err error
-		if t, err = loadTreeByBlockID(b.ID); nil != err {
+		if t, err = LoadTreeByBlockID(b.ID); nil != err {
 			return
 		}
 		(*treeCache)[t.ID] = t
@@ -2550,7 +2572,7 @@ func exportRefTrees0(tree *parse.Tree, retTrees *map[string]*parse.Tree) {
 			if nil == defBlock {
 				return ast.WalkSkipChildren
 			}
-			defTree, err := loadTreeByBlockID(defBlock.RootID)
+			defTree, err := LoadTreeByBlockID(defBlock.RootID)
 			if nil != err {
 				return ast.WalkSkipChildren
 			}
@@ -2642,7 +2664,7 @@ func exportPandocConvertZip(exportNotebook bool, boxID, baseFolderName string, d
 				continue
 			}
 			id := docIAL["id"]
-			tree, err := loadTreeByBlockID(id)
+			tree, err := LoadTreeByBlockID(id)
 			if nil != err {
 				continue
 			}

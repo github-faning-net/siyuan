@@ -2,11 +2,13 @@ import {Divider} from "./Divider";
 import {Font, hasSameTextStyle, setFontStyle} from "./Font";
 import {ToolbarItem} from "./ToolbarItem";
 import {
-    fixTableRange, focusBlock,
+    fixTableRange,
+    focusBlock,
     focusByRange,
     focusByWbr,
     getEditorRange,
-    getSelectionPosition, selectAll,
+    getSelectionPosition,
+    selectAll,
     setFirstNodeRange,
     setLastNodeRange
 } from "../util/selection";
@@ -1134,6 +1136,35 @@ export class Toolbar {
         });
     }
 
+    private updateLanguage(languageElement: HTMLElement, protyle: IProtyle, id: string, nodeElement: HTMLElement, oldHtml: string, selectedLang: string) {
+        languageElement.textContent = selectedLang === window.siyuan.languages.clear ? "" : selectedLang;
+        window.siyuan.storage[Constants.LOCAL_CODELANG] = languageElement.textContent;
+        setStorageVal(Constants.LOCAL_CODELANG, window.siyuan.storage[Constants.LOCAL_CODELANG]);
+        const editElement = getContenteditableElement(nodeElement);
+        if (Constants.SIYUAN_RENDER_CODE_LANGUAGES.includes(languageElement.textContent)) {
+            nodeElement.dataset.content = editElement.textContent.trim();
+            nodeElement.dataset.subtype = languageElement.textContent;
+            nodeElement.className = "render-node";
+            nodeElement.innerHTML = `<div spin="1"></div><div class="protyle-attr" contenteditable="false">${Constants.ZWSP}</div>`;
+            processRender(nodeElement);
+        } else {
+            const lineNumber = nodeElement.getAttribute("linenumber");
+            if (lineNumber === "true" || (lineNumber !== "false" && window.siyuan.config.editor.codeSyntaxHighlightLineNum)) {
+                editElement.classList.add("protyle-linenumber");
+            } else {
+                editElement.classList.remove("protyle-linenumber");
+            }
+            (editElement as HTMLElement).textContent = editElement.textContent;
+            editElement.removeAttribute("data-render");
+            highlightRender(nodeElement);
+        }
+        nodeElement.setAttribute("updated", dayjs().format("YYYYMMDDHHmmss"));
+        updateTransaction(protyle, id, nodeElement.outerHTML, oldHtml);
+        this.subElement.classList.add("fn__none");
+        focusByRange(this.range);
+        return nodeElement.outerHTML;
+    }
+
     public showCodeLanguage(protyle: IProtyle, languageElement: HTMLElement) {
         const nodeElement = hasClosestBlock(languageElement);
         if (!nodeElement) {
@@ -1167,27 +1198,12 @@ export class Toolbar {
             }
             upDownHint(listElement, event);
             if (event.key === "Enter") {
-                const activeText = this.subElement.querySelector(".b3-list-item--focus").textContent;
-                languageElement.textContent = activeText === window.siyuan.languages.clear ? "" : activeText;
-                window.siyuan.storage[Constants.LOCAL_CODELANG] = languageElement.textContent;
-                setStorageVal(Constants.LOCAL_CODELANG, window.siyuan.storage[Constants.LOCAL_CODELANG]);
-                const editElement = getContenteditableElement(nodeElement);
-                const lineNumber = nodeElement.getAttribute("linenumber");
-                if (lineNumber === "true" || (lineNumber !== "false" && window.siyuan.config.editor.codeSyntaxHighlightLineNum)) {
-                    editElement.classList.add("protyle-linenumber");
-                } else {
-                    editElement.classList.remove("protyle-linenumber");
-                }
-                (editElement as HTMLElement).textContent = editElement.textContent;
-                editElement.removeAttribute("data-render");
-                highlightRender(nodeElement);
-                nodeElement.setAttribute("updated", dayjs().format("YYYYMMDDHHmmss"));
-                updateTransaction(protyle, id, nodeElement.outerHTML, oldHtml);
-                oldHtml = nodeElement.outerHTML;
+                oldHtml = this.updateLanguage(languageElement, protyle, id, nodeElement, oldHtml, this.subElement.querySelector(".b3-list-item--focus").textContent);
                 event.preventDefault();
                 event.stopPropagation();
+                return;
             }
-            if (event.key === "Escape" || event.key === "Enter") {
+            if (event.key === "Escape") {
                 this.subElement.classList.add("fn__none");
                 focusByRange(this.range);
             }
@@ -1238,27 +1254,7 @@ export class Toolbar {
             if (!listElement) {
                 return;
             }
-            languageElement.textContent = listElement.textContent === window.siyuan.languages.clear ? "" : listElement.textContent;
-            window.siyuan.storage[Constants.LOCAL_CODELANG] = languageElement.textContent;
-            setStorageVal(Constants.LOCAL_CODELANG, window.siyuan.storage[Constants.LOCAL_CODELANG]);
-            const nodeElement = hasClosestBlock(languageElement);
-            if (nodeElement) {
-                const editElement = getContenteditableElement(nodeElement);
-                const lineNumber = nodeElement.getAttribute("linenumber");
-                if (lineNumber === "true" || (lineNumber !== "false" && window.siyuan.config.editor.codeSyntaxHighlightLineNum)) {
-                    editElement.classList.add("protyle-linenumber");
-                } else {
-                    editElement.classList.remove("protyle-linenumber");
-                }
-                (editElement as HTMLElement).textContent = editElement.textContent;
-                editElement.removeAttribute("data-render");
-                highlightRender(nodeElement);
-                nodeElement.setAttribute("updated", dayjs().format("YYYYMMDDHHmmss"));
-                updateTransaction(protyle, id, nodeElement.outerHTML, oldHtml);
-                oldHtml = nodeElement.outerHTML;
-                this.subElement.classList.add("fn__none");
-                focusByRange(this.range);
-            }
+            oldHtml = this.updateLanguage(languageElement, protyle, id, nodeElement, oldHtml, listElement.textContent);
         });
         this.subElement.style.zIndex = (++window.siyuan.zIndex).toString();
         this.subElement.classList.remove("fn__none");
@@ -1436,7 +1432,7 @@ export class Toolbar {
     <svg><use xlink:href="#iconTrashcan"></use></svg>
 </span></div>`;
             });
-            this.subElement.querySelector(".b3-list--background").innerHTML = html ||`<li class="b3-list--empty">${window.siyuan.languages.emptyContent}</li>`;
+            this.subElement.querySelector(".b3-list--background").innerHTML = html || `<li class="b3-list--empty">${window.siyuan.languages.emptyContent}</li>`;
             /// #if !MOBILE
             const rangePosition = getSelectionPosition(nodeElement, range);
             setPosition(this.subElement, rangePosition.left, rangePosition.top + 18, Constants.SIZE_TOOLBAR_HEIGHT);
@@ -1468,7 +1464,7 @@ export class Toolbar {
             }
             upDownHint(listElement, event);
             if (event.key === "Enter") {
-                hintRenderWidget(this.subElement.querySelector(".b3-list-item--focus").textContent, protyle);
+                hintRenderWidget(this.subElement.querySelector(".b3-list-item--focus").getAttribute("data-content"), protyle);
                 this.subElement.classList.add("fn__none");
                 event.preventDefault();
             } else if (event.key === "Escape") {
@@ -1482,8 +1478,11 @@ export class Toolbar {
                 k: inputElement.value,
             }, (response) => {
                 let searchHTML = "";
-                response.data.blocks.forEach((item: { path: string, content: string }, index: number) => {
-                    searchHTML += `<div data-value="${item.path}" class="b3-list-item${index === 0 ? " b3-list-item--focus" : ""}">${item.content}</div>`;
+                response.data.blocks.forEach((item: { path: string, content: string,name:string }, index: number) => {
+                    searchHTML += `<div data-value="${item.path}" data-content="${item.content}" class="b3-list-item${index === 0 ? " b3-list-item--focus" : ""}">
+    ${item.name}
+    <span class="b3-list-item__meta">${item.content}</span>
+</div>`;
                 });
                 listElement.innerHTML = searchHTML;
             });
@@ -1494,7 +1493,7 @@ export class Toolbar {
             if (!listElement) {
                 return;
             }
-            hintRenderWidget(listElement.textContent, protyle);
+            hintRenderWidget(listElement.dataset.content, protyle);
         });
         this.subElement.style.zIndex = (++window.siyuan.zIndex).toString();
         this.subElement.classList.remove("fn__none");
@@ -1505,8 +1504,11 @@ export class Toolbar {
             k: "",
         }, (response) => {
             let html = "";
-            response.data.blocks.forEach((item: { content: string }, index: number) => {
-                html += `<div class="b3-list-item${index === 0 ? " b3-list-item--focus" : ""}">${item.content}</div>`;
+            response.data.blocks.forEach((item: { content: string, name: string }, index: number) => {
+                html += `<div class="b3-list-item${index === 0 ? " b3-list-item--focus" : ""}" data-content="${item.content}">
+${item.name}
+<span class="b3-list-item__meta">${item.content}</span>
+</div>`;
             });
             this.subElement.querySelector(".b3-list--background").innerHTML = html;
             /// #if !MOBILE
