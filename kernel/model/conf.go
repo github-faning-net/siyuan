@@ -80,6 +80,7 @@ type AppConf struct {
 	ShowChangelog  bool             `json:"showChangelog"`  // 是否显示版本更新日志
 	CloudRegion    int              `json:"cloudRegion"`    // 云端区域，0：中国大陆，1：北美
 	Snippet        *conf.Snpt       `json:"snippet"`        // 代码片段
+	State          int              `json:"state"`          // 运行状态，0：已经正常退出，1：运行中
 
 	m *sync.Mutex
 }
@@ -132,8 +133,20 @@ func InitConf() {
 	}
 
 	if "" != util.Lang {
-		Conf.Lang = util.Lang
-		logging.LogInfof("initialized the specified language [%s]", util.Lang)
+		initialized := false
+		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
+			// 移动端以上次设置的外观语言为准
+			if "" != Conf.Lang && util.Lang != Conf.Lang {
+				util.Lang = Conf.Lang
+				logging.LogInfof("use the last specified language [%s]", util.Lang)
+				initialized = true
+			}
+		}
+
+		if !initialized {
+			Conf.Lang = util.Lang
+			logging.LogInfof("initialized the specified language [%s]", util.Lang)
+		}
 	} else {
 		if "" == Conf.Lang {
 			// 未指定外观语言时使用系统语言
@@ -452,6 +465,21 @@ func InitConf() {
 
 	Conf.LocalIPs = util.GetLocalIPs()
 
+	if 1 == Conf.State {
+		// 上次未正常退出
+		go func() {
+			util.WaitForUILoaded()
+			time.Sleep(2 * time.Second)
+			if util.ContainerIOS == util.Container || util.ContainerAndroid == util.Container {
+				util.PushMsg(Conf.language(245), 15000)
+			} else {
+				util.PushMsg(Conf.language(244), 15000)
+			}
+		}()
+	}
+
+	Conf.State = 1 // 运行中
+
 	Conf.Save()
 	logging.SetLogLevel(Conf.LogLevel)
 
@@ -690,6 +718,7 @@ func (conf *AppConf) save0(data []byte) {
 }
 
 func (conf *AppConf) Close() {
+	conf.State = 0 // 已经正常退出
 	conf.Save()
 }
 

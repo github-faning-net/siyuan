@@ -28,7 +28,7 @@ import {removeEmbed} from "../wysiwyg/removeEmbed";
 import {getContenteditableElement, getTopAloneElement, isNotEditBlock} from "../wysiwyg/getBlock";
 import * as dayjs from "dayjs";
 import {fetchPost, fetchSyncPost} from "../../util/fetch";
-import {cancelSB, genEmptyElement, insertEmptyBlock, jumpToParentNext} from "../../block/util";
+import {cancelSB, genEmptyElement, getLangByType, insertEmptyBlock, jumpToParentNext} from "../../block/util";
 import {countBlockWord} from "../../layout/status";
 import {Constants} from "../../constants";
 import {mathRender} from "../render/mathRender";
@@ -49,6 +49,7 @@ import {insertAttrViewBlockAnimation} from "../render/av/row";
 import {avContextmenu} from "../render/av/action";
 import {openSearchAV} from "../render/av/relation";
 import {getPlainText} from "../util/paste";
+import {Menu} from "../../plugin/Menu";
 
 export class Gutter {
     public element: HTMLElement;
@@ -64,6 +65,7 @@ export class Gutter {
         this.element.className = "protyle-gutters";
         this.element.addEventListener("dragstart", (event: DragEvent & { target: HTMLElement }) => {
             hideTooltip();
+            window.siyuan.menus.menu.remove();
             const buttonElement = event.target.parentElement;
             let selectIds: string[] = [];
             let selectElements: Element[] = [];
@@ -96,11 +98,10 @@ export class Gutter {
             ghostElement.className = protyle.wysiwyg.element.className;
             selectElements.forEach(item => {
                 const type = item.getAttribute("data-type");
-                if (["NodeIFrame", "NodeWidget"].includes(type)) {
+                if (item.querySelector("iframe")) {
                     const embedElement = genEmptyElement();
                     embedElement.classList.add("protyle-wysiwyg--select");
-                    const isIFrame = type === "NodeIFrame";
-                    getContenteditableElement(embedElement).innerHTML = `<svg class="svg"><use xlink:href="#icon${isIFrame ? "Language" : "Both"}"></use></svg> ${isIFrame ? "IFrame" : window.siyuan.languages.widget}`;
+                    getContenteditableElement(embedElement).innerHTML = `<svg class="svg"><use xlink:href="${buttonElement.querySelector("use").getAttribute("xlink:href")}"></use></svg> ${getLangByType(type)}`;
                     ghostElement.append(embedElement);
                 } else {
                     ghostElement.append(item.cloneNode(true));
@@ -234,8 +235,11 @@ export class Gutter {
                         action: "insertAttrViewBlock",
                         avID,
                         previousID,
-                        srcIDs,
-                        isDetached: true,
+                        srcs: [{
+                            id: srcIDs[0],
+                            isDetached: true,
+                            content: ""
+                        }],
                         blockID: id,
                     }, {
                         action: "doUpdateUpdated",
@@ -809,23 +813,28 @@ export class Gutter {
                 });
             }
         }).element);
+        const range = getSelection().rangeCount > 0 ? getSelection().getRangeAt(0) : undefined;
         window.siyuan.menus.menu.append(new MenuItem({
             label: window.siyuan.languages.addToDatabase,
             accelerator: window.siyuan.config.keymap.general.addToDatabase.custom,
             icon: "iconDatabase",
             click: () => {
                 openSearchAV("", selectsElement[0] as HTMLElement, (listItemElement) => {
-                    const sourceIds: string[] = [];
+                    const srcIDs: string[] = [];
+                    const srcs: IOperationSrcs[] = [];
                     selectsElement.forEach(item => {
-                        sourceIds.push(item.getAttribute("data-node-id"));
+                        srcIDs.push(item.getAttribute("data-node-id"));
+                        srcs.push({
+                            id:item.getAttribute("data-node-id"),
+                            isDetached: false,
+                        });
                     });
                     const avID = listItemElement.dataset.avId;
                     transaction(protyle, [{
                         action: "insertAttrViewBlock",
                         avID,
-                        srcIDs: sourceIds,
+                        srcs,
                         ignoreFillFilter: true,
-                        isDetached: false,
                         blockID: listItemElement.dataset.blockId
                     }, {
                         action: "doUpdateUpdated",
@@ -833,10 +842,10 @@ export class Gutter {
                         data: dayjs().format("YYYYMMDDHHmmss"),
                     }], [{
                         action: "removeAttrViewBlock",
-                        srcIDs: sourceIds,
+                        srcIDs,
                         avID,
                     }]);
-                    focusBlock(selectsElement[0]);
+                    focusByRange(range);
                 });
             }
         }).element);
@@ -925,7 +934,10 @@ export class Gutter {
             return;
         }
         hideElements(["util", "toolbar", "hint"], protyle);
-        window.siyuan.menus.menu.remove();
+        const menu = new Menu("gutter");
+        if (menu.isOpen) {
+            return;
+        }
         if (isMobile()) {
             activeBlur();
         }
@@ -1273,20 +1285,22 @@ export class Gutter {
                     });
                 }
             }).element);
+            const range = getSelection().rangeCount > 0 ? getSelection().getRangeAt(0) : undefined;
             window.siyuan.menus.menu.append(new MenuItem({
                 label: window.siyuan.languages.addToDatabase,
                 accelerator: window.siyuan.config.keymap.general.addToDatabase.custom,
                 icon: "iconDatabase",
                 click: () => {
                     openSearchAV("", nodeElement as HTMLElement, (listItemElement) => {
-                        const sourceIds: string[] = [id];
                         const avID = listItemElement.dataset.avId;
                         transaction(protyle, [{
                             action: "insertAttrViewBlock",
                             avID,
-                            srcIDs: sourceIds,
+                            srcs:[{
+                                id,
+                                isDetached: false
+                            }],
                             ignoreFillFilter: true,
-                            isDetached: false,
                             blockID: listItemElement.dataset.blockId
                         }, {
                             action: "doUpdateUpdated",
@@ -1294,10 +1308,10 @@ export class Gutter {
                             data: dayjs().format("YYYYMMDDHHmmss"),
                         }], [{
                             action: "removeAttrViewBlock",
-                            srcIDs: sourceIds,
+                            srcIDs: [id],
                             avID,
                         }]);
-                        focusBlock(nodeElement);
+                        focusByRange(range);
                     });
                 }
             }).element);
