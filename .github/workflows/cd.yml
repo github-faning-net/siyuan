@@ -6,6 +6,13 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# ref https://docs.github.com/zh/actions/learn-github-actions/variables
+env:
+  repo_name_android: "siyuan-android"
+  repo_name: "siyuan"
+  repo_owner: "siyuan-note"
+  package_json: "app/package.json"
+
 jobs:
   create_release:
     name: Create Release
@@ -17,10 +24,10 @@ jobs:
       packageManager: ${{ steps.packageManager.outputs.value }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
       - run: pip install PyGithub
@@ -51,13 +58,13 @@ jobs:
         uses: sergeysova/jq-action@v2
         id: version
         with:
-          cmd: 'jq .version app/package.json -r'
+          cmd: 'jq .version ${{ env.package_json }} -r'
 
       - name: Extract packageManager from package.json
         uses: sergeysova/jq-action@v2
         id: packageManager
         with:
-            cmd: "jq .packageManager app/package.json -r"
+            cmd: "jq .packageManager ${{ env.package_json }} -r"
 
       - name: Create Release
         id: create_release
@@ -72,18 +79,21 @@ jobs:
 
   build:
     runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.name }}
     needs: create_release
     strategy:
       matrix:
         config:
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
+            name: ubuntu build linux.AppImage
             kernel_path: "../app/kernel-linux/SiYuan-Kernel"
             build_args: "-s -w -X github.com/github-faning-net/siyuan/kernel/util.Mode=prod"
             electron_args: "dist-linux"
             goos: "linux"
             goarch: "amd64"
             suffix: "linux.AppImage"
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
+            name: ubuntu build linux.tar.gz
             kernel_path: "../app/kernel-linux/SiYuan-Kernel"
             build_args: "-s -w -X github.com/github-faning-net/siyuan/kernel/util.Mode=prod"
             electron_args: "dist-linux"
@@ -91,6 +101,7 @@ jobs:
             goarch: "amd64"
             suffix: "linux.tar.gz"
           - os: macos-latest
+            name: macos build mac.dmg
             kernel_path: "../app/kernel-darwin/SiYuan-Kernel"
             build_args: "-s -w -X github.com/github-faning-net/siyuan/kernel/util.Mode=prod"
             electron_args: "dist-darwin"
@@ -98,13 +109,15 @@ jobs:
             goarch: "amd64"
             suffix: "mac.dmg"
           - os: macos-latest
+            name: macos build mac-arm64.dmg
             kernel_path: "../app/kernel-darwin-arm64/SiYuan-Kernel"
             build_args: "-s -w -X github.com/github-faning-net/siyuan/kernel/util.Mode=prod"
             electron_args: "dist-darwin-arm64"
             goos: "darwin"
             goarch: "arm64"
             suffix: "mac-arm64.dmg"
-          - os: windows-2019
+          - os: windows-latest
+            name: windows build win.exe
             kernel_path: "../app/kernel/SiYuan-Kernel.exe"
             build_args: "-s -w -H=windowsgui -X github.com/github-faning-net/siyuan/kernel/util.Mode=prod"
             electron_args: "dist"
@@ -115,7 +128,7 @@ jobs:
             suffix: "win.exe"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         path: ${{ github.workspace }}/go/src/github.com/github-faning-net/siyuan
 
@@ -131,9 +144,10 @@ jobs:
       working-directory: ${{ github.workspace }}
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
-        go-version: "1.22"
+        go-version-file: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel/go.mod
+    - run: go version
 
     - name: Set up goversioninfo
       run: go get github.com/josephspurrier/goversioninfo/cmd/goversioninfo && go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo
