@@ -17,7 +17,7 @@ on:
 env:
   repo_name_android: "siyuan-android"
   repo_name: "siyuan"
-  repo_owner: "siyuan-note"
+  repo_owner: "github-faning-net"
   package_json: "app/package.json"
   docker_hub_owner: "b3log"
   docker_hub_repo: "siyuan"
@@ -74,4 +74,4 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/github-faning-net/siyuan:latest -t ghcr.io/github-faning-net/siyuan:v103.0.2 .
+          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/github-faning-net/siyuan:latest -t ghcr.io/${{ env.repo_owner }}/${{ env.repo_name }}:v3.0.14 .
