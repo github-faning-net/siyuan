@@ -74,4 +74,4 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/github-faning-net/siyuan:latest -t ghcr.io/${{ env.repo_owner }}/${{ env.repo_name }}:v3.0.14 .
+          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/github-faning-net/siyuan:latest -t ghcr.io/${{ env.repo_owner }}/${{ env.repo_name }}:v3.0.16 .
