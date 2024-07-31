@@ -268,7 +268,7 @@ func recreateTree(tree *parse.Tree, absPath string) {
 	treenode.RemoveBlockTreesByPathPrefix(strings.TrimSuffix(tree.Path, ".sy"))
 	treenode.RemoveBlockTreesByRootID(tree.ID)
 
-	resetTree(tree, "")
+	resetTree(tree, "", true)
 	if err := filesys.WriteTree(tree); nil != err {
 		logging.LogWarnf("write tree [%s] failed: %s", tree.Path, err)
 		return
@@ -478,7 +478,7 @@ func reindexTree0(tree *parse.Tree, i, size int) {
 		tree.Root.SetIALAttr("updated", updated)
 		indexWriteTreeUpsertQueue(tree)
 	} else {
-		treenode.IndexBlockTree(tree)
+		treenode.UpsertBlockTree(tree)
 		sql.IndexTreeQueue(tree)
 	}
 

@@ -18,7 +18,12 @@ import {ipcRenderer, shell} from "electron";
 import {pushBack} from "../util/backForward";
 import {Asset} from "../asset";
 import {Layout} from "../layout";
-import {hasClosestBlock, hasClosestByAttribute, hasClosestByClassName,} from "../protyle/util/hasClosest";
+import {
+    hasClosestBlock,
+    hasClosestByAttribute,
+    hasClosestByClassName,
+    isInEmbedBlock,
+} from "../protyle/util/hasClosest";
 import {zoomOut} from "../menus/protyle";
 import {countBlockWord, countSelectWord} from "../layout/status";
 import {showMessage} from "../dialog/message";
@@ -187,18 +192,20 @@ export const openFile = async (options: IOpenFileOptions) => {
 
     /// #if !BROWSER
     // https://github.com/siyuan-note/siyuan/issues/7491
-    let hasMatch = false;
-    const optionsClone = Object.assign({}, options);
-    delete optionsClone.app;    // 防止 JSON.stringify 时产生递归
-    hasMatch = await ipcRenderer.invoke(Constants.SIYUAN_GET, {
-        cmd: Constants.SIYUAN_OPEN_FILE,
-        options: JSON.stringify(optionsClone),
-    });
-    if (hasMatch) {
-        if (options.afterOpen) {
-            options.afterOpen();
+    if (!options.position) {
+        let hasMatch = false;
+        const optionsClone = Object.assign({}, options);
+        delete optionsClone.app;    // 防止 JSON.stringify 时产生递归
+        hasMatch = await ipcRenderer.invoke(Constants.SIYUAN_GET, {
+            cmd: Constants.SIYUAN_OPEN_FILE,
+            options: JSON.stringify(optionsClone),
+        });
+        if (hasMatch) {
+            if (options.afterOpen) {
+                options.afterOpen();
+            }
+            return;
         }
-        return;
     }
     /// #endif
 
@@ -347,7 +354,7 @@ const switchEditor = (editor: Editor, options: IOpenFileOptions, allModels: IMod
     }
     let nodeElement: Element;
     Array.from(editor.editor.protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${options.id}"]`)).find(item => {
-        if (!hasClosestByAttribute(item.parentElement, "data-type", "NodeBlockQueryEmbed")) {
+        if (!isInEmbedBlock(item)) {
             nodeElement = item;
             return true;
         }

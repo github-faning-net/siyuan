@@ -76,7 +76,7 @@ func renderOutline(heading *ast.Node, luteEngine *lute.Lute) (ret string) {
 			tokens = bytes.ReplaceAll(tokens, []byte(" "), []byte("&nbsp;")) // 大纲面板条目中无法显示多个空格 https://github.com/siyuan-note/siyuan/issues/4370
 			buf.Write(tokens)
 		case ast.NodeBackslashContent:
-			buf.Write(n.Tokens)
+			buf.Write(html.EscapeHTML(n.Tokens))
 		case ast.NodeTextMark:
 			dom := luteEngine.RenderNodeBlockDOM(n)
 			buf.WriteString(dom)
@@ -165,21 +165,96 @@ func renderBlockContentByNodes(nodes []*ast.Node) string {
 	return buf.String()
 }
 
-func renderBlockMarkdownR(id string) string {
-	var rendered []string
-	nodes := renderBlockMarkdownR0(id, &rendered)
-	buf := bytes.Buffer{}
-	buf.Grow(4096)
-	luteEngine := NewLute()
-	for _, n := range nodes {
-		md := treenode.FormatNode(n, luteEngine)
-		buf.WriteString(md)
-		buf.WriteString("\n\n")
+func resolveEmbedR(n *ast.Node, blockEmbedMode int, luteEngine *lute.Lute, resolved *[]string) {
+	var children []*ast.Node
+	if ast.NodeHeading == n.Type {
+		children = append(children, n)
+		children = append(children, treenode.HeadingChildren(n)...)
+	} else if ast.NodeDocument == n.Type {
+		for c := n.FirstChild; nil != c; c = c.Next {
+			children = append(children, c)
+		}
+	} else {
+		children = append(children, n)
 	}
-	return buf.String()
+
+	for _, child := range children {
+		var unlinks []*ast.Node
+		ast.Walk(child, func(n *ast.Node, entering bool) ast.WalkStatus {
+			if !entering || !n.IsBlock() {
+				return ast.WalkContinue
+			}
+
+			if ast.NodeBlockQueryEmbed == n.Type {
+				if gulu.Str.Contains(n.ID, *resolved) {
+					return ast.WalkContinue
+				}
+				*resolved = append(*resolved, n.ID)
+
+				stmt := n.ChildByType(ast.NodeBlockQueryEmbedScript).TokensStr()
+				stmt = html.UnescapeString(stmt)
+				stmt = strings.ReplaceAll(stmt, editor.IALValEscNewLine, "\n")
+				sqlBlocks := sql.SelectBlocksRawStmt(stmt, 1, Conf.Search.Limit)
+				for _, sqlBlock := range sqlBlocks {
+					md := sqlBlock.Markdown
+
+					if "d" == sqlBlock.Type {
+						subTree, _ := LoadTreeByBlockID(sqlBlock.ID)
+						md, _ = lute.FormatNodeSync(subTree.Root, luteEngine.ParseOptions, luteEngine.RenderOptions)
+					} else if "h" == sqlBlock.Type {
+						subTree, _ := LoadTreeByBlockID(sqlBlock.ID)
+						h := treenode.GetNodeInTree(subTree, sqlBlock.ID)
+						var hChildren []*ast.Node
+						hChildren = append(hChildren, h)
+						hChildren = append(hChildren, treenode.HeadingChildren(h)...)
+						mdBuf := &bytes.Buffer{}
+						for _, hChild := range hChildren {
+							md, _ = lute.FormatNodeSync(hChild, luteEngine.ParseOptions, luteEngine.RenderOptions)
+							mdBuf.WriteString(md)
+							mdBuf.WriteString("\n\n")
+						}
+						md = mdBuf.String()
+					}
+
+					buf := &bytes.Buffer{}
+					lines := strings.Split(md, "\n")
+					for i, line := range lines {
+						if 0 == blockEmbedMode { // 使用原始文本
+							buf.WriteString(line)
+						} else { // 使用引述块
+							buf.WriteString("> " + line)
+						}
+						if i < len(lines)-1 {
+							buf.WriteString("\n")
+						}
+					}
+					buf.WriteString("\n\n")
+
+					subTree := parse.Parse("", buf.Bytes(), luteEngine.ParseOptions)
+					var inserts []*ast.Node
+					for subNode := subTree.Root.FirstChild; nil != subNode; subNode = subNode.Next {
+						if ast.NodeKramdownBlockIAL != subNode.Type {
+							inserts = append(inserts, subNode)
+						}
+					}
+					for _, insert := range inserts {
+						n.InsertBefore(insert)
+						resolveEmbedR(insert, blockEmbedMode, luteEngine, resolved)
+					}
+				}
+				unlinks = append(unlinks, n)
+				return ast.WalkSkipChildren
+			}
+			return ast.WalkContinue
+		})
+		for _, unlink := range unlinks {
+			unlink.Unlink()
+		}
+	}
+	return
 }
 
-func renderBlockMarkdownR0(id string, rendered *[]string) (ret []*ast.Node) {
+func renderBlockMarkdownR(id string, rendered *[]string) (ret []*ast.Node) {
 	if gulu.Str.Contains(id, *rendered) {
 		return
 	}
@@ -225,7 +300,7 @@ func renderBlockMarkdownR0(id string, rendered *[]string) (ret []*ast.Node) {
 				stmt = strings.ReplaceAll(stmt, editor.IALValEscNewLine, "\n")
 				sqlBlocks := sql.SelectBlocksRawStmt(stmt, 1, Conf.Search.Limit)
 				for _, sqlBlock := range sqlBlocks {
-					subNodes := renderBlockMarkdownR0(sqlBlock.ID, rendered)
+					subNodes := renderBlockMarkdownR(sqlBlock.ID, rendered)
 					for _, subNode := range subNodes {
 						inserts = append(inserts, subNode)
 					}
