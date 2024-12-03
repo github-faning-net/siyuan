@@ -10,7 +10,7 @@ on:
 env:
   repo_name_android: "siyuan-android"
   repo_name: "siyuan"
-  repo_owner: "siyuan-note"
+  repo_owner: "github-faning-net"
   package_json: "app/package.json"
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
       - id: thisLatestRelease
         uses: pozetroninc/github-action-get-latest-release@master
         with:
-          # owner: siyuan-note
+          # owner: github-faning-net
           # repo: siyuan
           repository: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}

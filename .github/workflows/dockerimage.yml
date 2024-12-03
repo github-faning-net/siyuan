@@ -15,9 +15,9 @@ on:
 env:
   repo_name_android: "siyuan-android"
   repo_name: "siyuan"
-  repo_owner: "siyuan-note"
+  repo_owner: "github-faning-net"
   package_json: "app/package.json"
-  docker_hub_owner: "b3log"
+  docker_hub_owner: "github-faning-net"
   docker_hub_repo: "siyuan"
 
 jobs:
@@ -66,14 +66,15 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_HUB_USER }}
-          password: ${{ secrets.DOCKER_HUB_PWD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the Docker image use Workflow Dispatch inputs' version
         if: ${{ github.event_name == 'workflow_dispatch' && !github.event.inputs.image_tag == '' }}
         run: |
-          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:latest -t ${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:v${{ github.event.inputs.image_tag }} .
+          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:latest -t ghcr.io/${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:v${{ github.event.inputs.image_tag }} .
       - name: Build the Docker image use package_json version
         if: ${{ github.event_name == 'push' || github.event.inputs.image_tag == '' }}
         run: |
-          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:latest -t ${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:v${{ steps.version.outputs.value }} .
+          docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8 -t ghcr.io/${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:latest -t ghcr.io/${{ env.docker_hub_owner }}/${{ env.docker_hub_repo }}:v${{ steps.version.outputs.value }} .

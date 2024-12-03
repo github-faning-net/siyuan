@@ -852,6 +852,7 @@ func InitBoxes() {
 }
 
 func IsSubscriber() bool {
+	return true
 	u := Conf.GetUser()
 	return nil != u && (-1 == u.UserSiYuanProExpireTime || 0 < u.UserSiYuanProExpireTime) && 0 == u.UserSiYuanSubscriptionStatus
 }
@@ -859,6 +860,7 @@ func IsSubscriber() bool {
 func IsPaidUser() bool {
 	// S3/WebDAV data sync and backup are available for a fee https://github.com/siyuan-note/siyuan/issues/8780
 
+	return true
 	if IsSubscriber() {
 		return true
 	}
