@@ -168,7 +168,7 @@ const renderPDF = async (id: string) => {
         .b3-label:last-child {
             border-bottom: none;
         }
-        ${setInlineStyle(false)}
+        ${await setInlineStyle(false)}
         ${document.getElementById("pluginsStyle").innerHTML}
         ${getSnippetCSS()}
     </style>
@@ -317,6 +317,9 @@ const renderPDF = async (id: string) => {
             item.style.boxSizing = "border-box";
             item.style.width = Math.min(item.clientWidth, width) + "px";
             item.removeAttribute('data-render');
+        })
+        previewElement.querySelectorAll('[data-type="NodeCodeBlock"][data-subtype="mermaid"] svg').forEach((item) => {
+            item.style.maxHeight = width * 1.414 + "px";
         })
         Protyle.mathRender(previewElement, "${servePath}/stage/protyle", true);
         previewElement.querySelectorAll("table").forEach(item => {

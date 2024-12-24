@@ -853,8 +853,19 @@ export const keydown = (protyle: IProtyle, editorElement: HTMLElement) => {
                         let nextSibling = hasNextSibling(range.startContainer) as Element;
                         if (nextSibling) {
                             if (nextSibling.nodeType === 3 && nextSibling.textContent === Constants.ZWSP) {
+                                if (!nextSibling.nextSibling) {
+                                    // https://github.com/siyuan-note/siyuan/issues/13524
+                                    const nextBlockElement = getNextBlock(nodeElement);
+                                    if (nextBlockElement) {
+                                        removeBlock(protyle, nextBlockElement, range, "remove");
+                                    }
+                                    event.stopPropagation();
+                                    event.preventDefault();
+                                    return;
+                                }
                                 nextSibling = nextSibling.nextSibling as Element;
                             }
+
                             if (nextSibling.nodeType === 1 && nextSibling.classList.contains("img")) {
                                 // 光标需在图片前 https://github.com/siyuan-note/siyuan/issues/12452
                                 const textPosition = getSelectionOffset(range.startContainer, protyle.wysiwyg.element, range);
@@ -1354,7 +1365,16 @@ export const keydown = (protyle: IProtyle, editorElement: HTMLElement) => {
         if (matchHotKey(window.siyuan.config.keymap.editor.list.outdent.custom, event)) {
             const selectElements = protyle.wysiwyg.element.querySelectorAll(".protyle-wysiwyg--select");
             if (selectElements.length > 0) {
-                if (selectElements[0].getAttribute("data-type") === "NodeListItem") {
+                let isContinuous = true;
+                selectElements.forEach((item, index) => {
+                    if (item.nextElementSibling && selectElements[index + 1]) {
+                        if (!selectElements[index + 1].isSameNode(item.nextElementSibling)) {
+                            isContinuous = false;
+                        }
+                    }
+                });
+                if (isContinuous &&
+                    (selectElements[0].classList.contains("li") || selectElements[0].parentElement.classList.contains("li"))) {
                     listOutdent(protyle, Array.from(selectElements), range);
                 }
                 event.preventDefault();
@@ -1371,7 +1391,16 @@ export const keydown = (protyle: IProtyle, editorElement: HTMLElement) => {
         if (matchHotKey(window.siyuan.config.keymap.editor.list.indent.custom, event)) {
             const selectElements = protyle.wysiwyg.element.querySelectorAll(".protyle-wysiwyg--select");
             if (selectElements.length > 0) {
-                if (selectElements[0].getAttribute("data-type") === "NodeListItem") {
+                let isContinuous = true;
+                selectElements.forEach((item, index) => {
+                    if (item.nextElementSibling && selectElements[index + 1]) {
+                        if (!selectElements[index + 1].isSameNode(item.nextElementSibling)) {
+                            isContinuous = false;
+                        }
+                    }
+                });
+                if (isContinuous &&
+                    (selectElements[0].classList.contains("li") || selectElements[0].parentElement.classList.contains("li"))) {
                     listIndent(protyle, Array.from(selectElements), range);
                 }
                 event.preventDefault();
@@ -1784,6 +1813,12 @@ export const keydown = (protyle: IProtyle, editorElement: HTMLElement) => {
         // 置于最后，太多快捷键会使用到选中元素
         if (isNotCtrl(event) && event.key !== "Backspace" && event.key !== "Escape" && event.key !== "Delete" && !event.shiftKey && !event.altKey && event.key !== "Enter") {
             hideElements(["select"], protyle);
+        }
+
+        if (matchHotKey("⌘B", event) || matchHotKey("⌘I", event) || matchHotKey("⌘U", event)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
         }
     });
 };

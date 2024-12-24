@@ -22,7 +22,7 @@ import {hintRef} from "../../hint/extend";
 import {focusBlock, focusByRange} from "../../util/selection";
 import {showMessage} from "../../../dialog/message";
 import {previewImage} from "../../preview/image";
-import {unicode2Emoji} from "../../../emoji";
+import {openEmojiPanel, unicode2Emoji} from "../../../emoji";
 import * as dayjs from "dayjs";
 import {openCalcMenu} from "./calc";
 import {avRender} from "./render";
@@ -214,7 +214,7 @@ export const avClick = (protyle: IProtyle, event: MouseEvent & { target: HTMLEle
                 }
                 const cellType = getTypeByCellElement(target);
                 // TODO 点击单元格的时候， lineNumber 选中整行
-                if (cellType === "updated" || cellType === "created" || cellType === "lineNumber" || (cellType === "block" && !target.getAttribute("data-detached"))) {
+                if (cellType === "updated" || cellType === "created" || cellType === "lineNumber") {
                     selectRow(rowElement.querySelector(".av__firstcol"), "toggle");
                 } else {
                     scrollElement.querySelectorAll(".av__row--select").forEach(item => {
@@ -230,6 +230,17 @@ export const avClick = (protyle: IProtyle, event: MouseEvent & { target: HTMLEle
             return true;
         } else if (target.classList.contains("av__calc")) {
             openCalcMenu(protyle, target, undefined, event.clientX - 64);
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+        } else if (target.classList.contains("b3-menu__avemoji")) {
+            const rect = target.getBoundingClientRect();
+            openEmojiPanel(target.parentElement.getAttribute("data-block-id"), "doc", {
+                x: rect.left,
+                y: rect.bottom,
+                h: rect.height,
+                w: rect.width,
+            }, undefined, target.querySelector("img"));
             event.preventDefault();
             event.stopPropagation();
             return true;
@@ -573,18 +584,9 @@ ${window.siyuan.languages.insertRowAfter.replace("${x}", `<span class="fn__space
         });
         const editAttrSubmenu: IMenu[] = [];
         rowElement.parentElement.querySelectorAll(".av__row--header .av__cell").forEach((cellElement: HTMLElement) => {
-            let hideBlock = false;
             const selectElements: HTMLElement[] = Array.from(blockElement.querySelectorAll(`.av__row--select:not(.av__row--header) .av__cell[data-col-id="${cellElement.dataset.colId}"]`));
-            if (cellElement.dataset.dtype === "block") {
-                selectElements.find(item => {
-                    if (!item.dataset.detached) {
-                        hideBlock = true;
-                        return true;
-                    }
-                });
-            }
             const type = cellElement.getAttribute("data-dtype") as TAVCol;
-            if (!hideBlock && !["updated", "created"].includes(type)) {
+            if (!["updated", "created"].includes(type)) {
                 const icon = cellElement.dataset.icon;
                 editAttrSubmenu.push({
                     iconHTML: icon ? unicode2Emoji(icon, "b3-menu__icon", true) : `<svg class="b3-menu__icon"><use xlink:href="#${getColIconByType(type)}"></use></svg>`,
